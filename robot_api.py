@@ -14,8 +14,12 @@ def _init_node() -> None:
     """Initialize ROS node for the current process if not already done."""
     if not rosgraph.is_master_online():
         rospy.logwarn("Waiting for ROS master node to go online ...")
-    while not rosgraph.is_master_online():
-        time.sleep(1.0)
+        while not rosgraph.is_master_online():
+            time.sleep(1.0)
+    if rospy.is_shutdown():
+        rospy.logerr("ROS is shutting down.")
+        return
+
     name = f"robot_api_{os.getpid()}"
     # Note: ROS cannot check if a node is initialized, so we have to try.
     #   At least check if we initialized it ourselves before.

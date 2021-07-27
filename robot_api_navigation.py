@@ -22,7 +22,7 @@ class Navigation:
     def __init__(self, robot: Robot, connect: bool) -> None:
         self._robot = robot
         self._action_client = actionlib.SimpleActionClient(robot.namespace + "move_base", MoveBaseAction)
-        self._waypoints = OrderedDict()  # type: Dict[str, Tuple[List[float], List[float]]]
+        self.waypoints = OrderedDict()  # type: Dict[str, Tuple[List[float], List[float]]]
         self._next_waypoint = 1
         self._connected = False
         if connect:
@@ -38,17 +38,17 @@ class Navigation:
 
     def _add_generic_waypoint(self, position: List[float], orientation: List[float]) -> None:
         """Add (position, orientation) with generic name to list of stored waypoints."""
-        while "waypoint" + str(self._next_waypoint) in self._waypoints.keys():
+        while "waypoint" + str(self._next_waypoint) in self.waypoints.keys():
             self._next_waypoint += 1
-        self._waypoints["waypoint" + str(self._next_waypoint)] = (position, orientation)
+        self.waypoints["waypoint" + str(self._next_waypoint)] = (position, orientation)
 
     def _waypoints_to_str(self) -> str:
         """Convert OrderedDict representation of waypoints to str."""
-        return '\n'.join(f"'{waypoint_name}': {waypoint}" for waypoint_name, waypoint in self._waypoints.items())
+        return '\n'.join(f"'{waypoint_name}': {waypoint}" for waypoint_name, waypoint in self.waypoints.items())
 
     def _get_custom_waypoint_name(self, position: List[float], orientation: List[float]) -> str:
         """Return custom name of waypoint (position, orientation) if it exists."""
-        for name, waypoint in self._waypoints.items():
+        for name, waypoint in self.waypoints.items():
             if not name.startswith("waypoint") and waypoint == (position, orientation):
                 return name
 
@@ -57,13 +57,13 @@ class Navigation:
     def move_to_goal(self, goal: MoveBaseGoal, timeout: float) -> Any:
         """Move robot to move_base_msgs/MoveBaseGoal with timeout."""
         if not self._connect():
-            rospy.logerr("Cannot move to goal.")
+            rospy.logerr(f"Cannot move to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return
 
         p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
         position = [p.x, p.y, p.z]
         orientation = [q.x, q.y, q.z, q.w]
-        is_new_goal = (position, orientation) not in self._waypoints.values()
+        is_new_goal = (position, orientation) not in self.waypoints.values()
         custom_goal_name = self._get_custom_waypoint_name(position, orientation)
         rospy.loginfo(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
             + (f"'{custom_goal_name}' " if custom_goal_name else "")
@@ -106,33 +106,33 @@ class Navigation:
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0) -> Any:
         """Move robot to waypoint by name in frame_id's map with timeout."""
-        if name not in self._waypoints.keys():
-            if self._waypoints:
+        if name not in self.waypoints.keys():
+            if self.waypoints:
                 rospy.logerr(f"Waypoint '{name}' does not exist. Available waypoints:\n"
                     + self._waypoints_to_str())
             else:
                 rospy.logerr(f"No waypoints defined yet, so cannot use waypoint '{name}'.")
             return
 
-        position, orientation = self._waypoints[name]
+        position, orientation = self.waypoints[name]
         return self.move_to_position_and_orientation(position, orientation, frame_id, timeout)
 
     def add_waypoint(self, name: str, position: List[float], orientation: List[float]) -> None:
         """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""
-        if name in self._waypoints.keys():
-            rospy.logwarn(f"Overwriting waypoint: {self._waypoints[name]}")
-        self._waypoints[name] = (position, orientation)
+        if name in self.waypoints.keys():
+            rospy.logwarn(f"Overwriting waypoint: {self.waypoints[name]}")
+        self.waypoints[name] = (position, orientation)
 
     def save_waypoints(self, filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         """Save waypoints to file, default: '~/.ros/robot_api_waypoints.txt'."""
-        if not self._waypoints:
+        if not self.waypoints:
             rospy.logwarn("No waypoints to save.")
             return
 
         filepath = os.path.expanduser(filepath)
         try:
             with open(filepath, 'w') as text_file:
-                for waypoint_name, waypoint in self._waypoints.items():
+                for waypoint_name, waypoint in self.waypoints.items():
                     # Note: Write tuple as list for nicer format.
                     text_file.write(f"'{waypoint_name}': {list(waypoint)}\n")
         except Exception:
@@ -149,7 +149,7 @@ class Navigation:
                 assert isinstance(elements, dict), f"Invalid format in line: {line}"
                 for name, (position, orientation) in elements.items():
                     self.add_waypoint(name, position, orientation)
-            rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(self._waypoints)} in total.")
+            rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(self.waypoints)} in total.")
         except Exception:
             rospy.logerr(f"Cannot read from file '{filepath}'!")
 

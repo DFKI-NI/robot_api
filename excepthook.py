@@ -4,7 +4,6 @@ import sys
 
 
 class Excepthook:
-    """Suppress traceback if exception is raised as expected. Otherwise, use sys.excepthook by default."""
     _sys_excepthook = sys.excepthook
     _expected_exception = None  # type: Optional[BaseException]
 
@@ -20,6 +19,7 @@ class Excepthook:
 
     @staticmethod
     def expect(exception: BaseException) -> BaseException:
+        """Suppress traceback if exception is raised as expected. Otherwise, use sys.excepthook by default."""
         Excepthook._expected_exception = exception
         sys.excepthook = Excepthook._excepthook
         return exception

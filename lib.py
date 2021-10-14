@@ -9,8 +9,8 @@ _executed_functions = {}  # type: Dict[Callable[[], Any], Any]
 
 def execute_once(function: Callable[[], Any]) -> Any:
     """Execute function only once and return its cached result on further calls."""
-    # Note: decorator implementation yields mypy untyped decorator error, even when using official documentation at
-    #   https://mypy.readthedocs.io/en/stable/generics.html#declaring-decorators
+    # Note: decorator implementation yields mypy untyped decorator error, even when trying to import the decorator
+    #   from the official documentation at https://mypy.readthedocs.io/en/stable/generics.html#declaring-decorators
     if function not in _executed_functions.keys():
         _executed_functions[function] = function()
     return _executed_functions[function]

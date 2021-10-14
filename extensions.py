@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from typing import Any, Callable, Optional
 import rospy
-import rosservice
 import actionlib
 from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult
 from robot_api.lib import execute_once
@@ -11,13 +10,6 @@ class Arm:
     def __init__(self, namespace: str) -> None:
         self._moveit_macros_action_client = actionlib.SimpleActionClient(namespace + "moveit_macros",
             MoveItMacroAction)
-
-    @staticmethod
-    def exists(namespace: str) -> bool:
-        for service in rosservice.get_service_list(namespace=namespace):
-            if service.startswith(namespace + "moveit_macro"):
-                return True
-        return False
 
     def _connect_moveit_macros(self) -> Any:
         rospy.logdebug("Waiting for moveit_macros action server ...")

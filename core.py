@@ -222,4 +222,4 @@ class Robot:
             namespace += '/'
         self.namespace = namespace
         self.base = Base(self, connect_navigation_on_init)
-        self.arm = Arm(self.namespace) if Arm.exists(self.namespace) else None
+        self.arm = Arm(self.namespace)

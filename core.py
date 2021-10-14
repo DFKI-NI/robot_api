@@ -6,15 +6,15 @@ import time
 import rospy
 import rosnode
 import rosgraph
-import tf
 import actionlib
-import re
+import tf
 import yaml
 from collections import OrderedDict
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from geometry_msgs.msg import Pose
-from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult
-from excepthook import expect_exception
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
+from robot_api.extensions import Arm
+from robot_api.excepthook import Excepthook
+from robot_api.lib import execute_once, _s
 
 
 def _init_node() -> None:
@@ -38,55 +38,20 @@ def _init_node() -> None:
             pass
 
 
-def _s(count: int, name: str, plural: str='s') -> str:
-    """Return name with or without plural ending depending on count."""
-    return f"{count} {name}{plural if count != 1 else ''}"
-
-
-def find_robot_namespaces() -> List[str]:
-    """Return list of robot namespaces by searching published topics for move_base/goal."""
-    topics = rospy.get_published_topics()
-    robot_namespaces = []  # type: List[str]
-    for topic, message_type in topics:
-        if message_type == "move_base_msgs/MoveBaseActionGoal":
-            match_result = re.match(r'\/(\w+)\/move_base\/goal', topic)
-            if match_result:
-                robot_namespaces.append(match_result.group(1))
-    return robot_namespaces
-
-
-class Robot:
-    def __init__(self, namespace: str=rospy.get_namespace(),
-            connect_navigation_on_init: bool=False) -> None:
-        _init_node()
-        # Make sure namespace naming is correct.
-        if not namespace.startswith('/'):
-            namespace = '/' + namespace
-        if not namespace.endswith('/'):
-            namespace += '/'
-        self.namespace = namespace
+class Base:
+    def __init__(self, robot: Robot, connect_navigation_on_init: bool) -> None:
+        self.robot = robot
+        self._move_base_action_client = actionlib.SimpleActionClient(self.robot.namespace + "move_base",
+            MoveBaseAction)
         self._tf_listener = tf.TransformListener()
-        self._move_base_action_client = actionlib.SimpleActionClient(self.namespace + "move_base", MoveBaseAction)
-        self._moveit_macros_action_client = actionlib.SimpleActionClient(self.namespace + "moveit_macros",
-            MoveItMacroAction)
         self.waypoints = OrderedDict()  # type: Dict[str, Tuple[List[float], List[float]]]
         self._next_waypoint = 1
-        self._executed_methods = {}  # type: Dict[Callable[[], Any], Any]
         if connect_navigation_on_init:
-            self._execute_once(self._connect_move_base)
-
-    def _execute_once(self, method: Callable[[], Any]) -> Any:
-        if method not in self._executed_methods.keys():
-            self._executed_methods[method] = method()
-        return self._executed_methods[method]
+            execute_once(self._connect_move_base)
 
     def _connect_move_base(self) -> Any:
         rospy.logdebug("Waiting for move_base action server ...")
         return self._move_base_action_client.wait_for_server()
-
-    def _connect_moveit_macros(self) -> Any:
-        rospy.logdebug("Waiting for moveit_macros action server ...")
-        return self._moveit_macros_action_client.wait_for_server()
 
     def _add_generic_waypoint(self, position: List[float], orientation: List[float]) -> None:
         """Add (position, orientation) with generic name to list of stored waypoints."""
@@ -105,12 +70,12 @@ class Robot:
                 return name
         return ""
 
-    def get_base_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
+    def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
             timeout: float=1.0) -> Tuple[List[float], List[float]]:
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
             position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                self.namespace + robot_frame, rospy.Time(0))
+                self.robot.namespace + robot_frame, rospy.Time(0))
         except tf.LookupException as e:
             # If timeout is given, repeatedly try again.
             if timeout:
@@ -119,33 +84,33 @@ class Robot:
                     try:
                         time.sleep(1.0)
                         position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                            self.namespace + robot_frame, rospy.Time(0))
+                            self.robot.namespace + robot_frame, rospy.Time(0))
                         return position, orientation
                     except tf.LookupException:
                         pass
-            expect_exception(e)
-            raise
+            raise Excepthook.expect(e)
+
         return position, orientation
 
-    def get_base_2d_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
+    def get_2d_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
             timeout: float=1.0) -> Tuple[float, float, float]:
         """Return robot pose as (x, y, yaw in radians)."""
-        position, orientation = self.get_base_pose(reference_frame, robot_frame, timeout)
+        position, orientation = self.get_pose(reference_frame, robot_frame, timeout)
         _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
         return position[0], position[1], yaw
 
-    def move_base(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
+    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
             pitch: float=0.0, roll: float=0.0, z: float=0.0, position: List[float]=[],
             orientation: List[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
             frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to goal pose using the following parameter options in descending priority:
-        move_base(goal: MoveBaseGoal)
-        move_base(pose: Pose)
-        move_base(position: List[float], orientation: List[float])
-        move_base(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
+        move(goal: MoveBaseGoal)
+        move(pose: Pose)
+        move(position: List[float], orientation: List[float])
+        move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
         """
-        if not self._execute_once(self._connect_move_base):
+        if not execute_once(self._connect_move_base):
             rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return
 
@@ -156,16 +121,16 @@ class Robot:
             if pose is None:
                 if not position:
                     if x is None or y is None:
-                        raise expect_exception(ValueError("Goal, pose, position, or both x and y must be specified."))
+                        raise Excepthook.expect(ValueError("Goal, pose, position, or both x and y must be specified."))
                     position = [x, y, z]
                 elif len(position) != 3:
-                    raise expect_exception(ValueError("Parameter position must have len 3."))
+                    raise Excepthook.expect(ValueError("Parameter position must have len 3."))
                 if not orientation:
                     if yaw is None:
-                        raise expect_exception(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
+                        raise Excepthook.expect(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
                     orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
                 elif len(orientation) != 4:
-                    raise expect_exception(ValueError("Parameter orientation must have len 4."))
+                    raise Excepthook.expect(ValueError("Parameter orientation must have len 4."))
                 p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
                 p.x, p.y, p.z = position
                 q.x, q.y, q.z, q.w = orientation
@@ -203,7 +168,7 @@ class Robot:
             return
 
         position, orientation = self.waypoints[name]
-        return self.move_base(position=position, orientation=orientation,
+        return self.move(position=position, orientation=orientation,
             frame_id=frame_id, timeout=timeout)
 
     def add_waypoint(self, name: str, position: List[float], orientation: List[float]) -> None:
@@ -246,21 +211,15 @@ class Robot:
         """Output currently stored waypoints with rospy.loginfo()."""
         rospy.loginfo(f"Available waypoints:\n" + self._waypoints_to_str())
 
-    def move_arm(self, goal_name: str, goal_type: str="target",
-            done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Move arm to goal_name if goal_type is 'target', or call goal_name if goal_type is 'function'.
-        Optionally, call done_cb() afterwards if given.
-        """
-        goal = MoveItMacroGoal()
-        goal.type = goal_type
-        goal.name = goal_name
-        if not self._execute_once(self._connect_moveit_macros):
-            rospy.logerr(f"Cannot move arm to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
-            return
 
-        rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")
-        # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
-        if done_cb is None:
-            return self._moveit_macros_action_client.send_goal_and_wait(goal)
-        else:
-            return self._moveit_macros_action_client.send_goal(goal, done_cb)
+class Robot:
+    def __init__(self, namespace: str=rospy.get_namespace(), connect_navigation_on_init: bool=False) -> None:
+        _init_node()
+        # Make sure namespace naming is correct.
+        if not namespace.startswith('/'):
+            namespace = '/' + namespace
+        if not namespace.endswith('/'):
+            namespace += '/'
+        self.namespace = namespace
+        self.base = Base(self, connect_navigation_on_init)
+        self.arm = Arm(self.namespace) if Arm.exists(self.namespace) else None

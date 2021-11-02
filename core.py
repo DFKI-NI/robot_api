@@ -76,7 +76,7 @@ class Base:
         try:
             position, orientation = self._tf_listener.lookupTransform(reference_frame,
                 self.robot.namespace + robot_frame, rospy.Time(0))
-        except tf.LookupException as e:
+        except (tf.LookupException, tf.ExtrapolationException) as e:
             # If timeout is given, repeatedly try again.
             if timeout:
                 time_start = time.time()

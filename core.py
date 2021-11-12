@@ -109,11 +109,14 @@ class Base:
         move(pose: Pose)
         move(position: List[float], orientation: List[float])
         move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
+
+        Optionally, call done_cb() afterwards if given.
         """
         if not execute_once(self._connect_move_base):
             rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return
 
+        # Parse a MoveBaseGoal from all the parameters.
         if goal is None:
             goal = MoveBaseGoal()
             goal.target_pose.header.frame_id = frame_id
@@ -124,13 +127,13 @@ class Base:
                         raise Excepthook.expect(ValueError("Goal, pose, position, or both x and y must be specified."))
                     position = [x, y, z]
                 elif len(position) != 3:
-                    raise Excepthook.expect(ValueError("Parameter position must have len 3."))
+                    raise Excepthook.expect(ValueError("Parameter 'position' must have len 3."))
                 if not orientation:
                     if yaw is None:
                         raise Excepthook.expect(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
                     orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
                 elif len(orientation) != 4:
-                    raise Excepthook.expect(ValueError("Parameter orientation must have len 4."))
+                    raise Excepthook.expect(ValueError("Parameter 'orientation' must have len 4."))
                 p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
                 p.x, p.y, p.z = position
                 q.x, q.y, q.z, q.w = orientation
@@ -144,6 +147,7 @@ class Base:
             position = [p.x, p.y, p.z]
             orientation = [q.x, q.y, q.z, q.w]
 
+        # Add waypoint if new, and move to goal.
         is_new_goal = (position, orientation) not in self.waypoints.values()
         custom_goal_name = self._get_custom_waypoint_name(position, orientation)
         rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
@@ -159,7 +163,9 @@ class Base:
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to waypoint by name in frame_id's map with timeout."""
+        """Move robot to waypoint by name in frame_id's map with timeout.
+        Optionally, call done_cb() afterwards if given.
+        """
         if name not in self.waypoints.keys():
             if self.waypoints:
                 rospy.logerr(f"Waypoint '{name}' does not exist. Available waypoints:\n"

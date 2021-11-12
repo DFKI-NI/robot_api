@@ -2,6 +2,12 @@
 
 A pre- and concise Python API to control robots with simple commands.
 
+## Overview
+
+The Robot API is an interface layer between an executor and ROS robot control. A user shall have a simple and well defined (typed) interface to call to for the execution of robot actions. The goal is for common actions to enable control of our robots independently from their types and without knowledge of their operation systems.
+
+On developer side, care is to be taken of the genericity of these actions by providing robot specific implementations towards this API. Special attention is necessary for capabilities which are not available on all robots. In these cases, the execution shall fail gracefully and not crash the system.
+
 ## Demo
 
 Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick) repository installed and compiled, first start up a ROS environment, e.g.:
@@ -41,4 +47,16 @@ At least on user side, you don't need to worry about importing `rospy` or initia
 
 ### Class structure
 
-Some considerations have been made about whether you might prefer to type `robot.move_base()` over `robot.base.move()`. In the end, the syntax is chosen to adhere to a meaningful component model. A base with localization and navigation capabilities is assumed to exist for any robot, and its functionality is encapsulated in a `Robot()`'s `base` variable. Additional components are available as separate field variables of `Robot()`. The interface definition at this point is still work in progress.
+Some considerations have been made about whether you might prefer to type `robot.move_base()` over `robot.base.move()`. In the end, the syntax is chosen to adhere to a meaningful component model. A base with localization and navigation capabilities is assumed to exist for any robot, and its functionality is encapsulated in a `Robot()`'s `base` variable. Additional components are available as separate field variables of the `Robot` class. The interface definition at this point is still work in progress.
+
+## Contribution
+
+Your contribution is very welcome. Much robot specific functionality is still missing for many of our robots. Please develop on the `develop` branch or a sub-branch of it, and use merge requests to merge stable implementation back.
+
+### Extensions
+
+Feel free to add further extensions as fields to the `Robot` class but keep in mind that these will exist then for all robots, even if they might not have the respective components. For example, `Base.arm` is such an extension. A gripper should not be an extension of `Base` unless we one day actually have a gripper on a robot's base without an arm. It could be an extension of `Base.arm` if you see benefits in encapsulating it further.
+
+### Connections
+
+By default, `robot_api` connects components lazily on demand. This means, for example, `actionlib` clients connect to their server when they execute something for the first time. Such mechnamisms are integral parts of the Robot API in order to offer convenience to the user. The user does not need to know about `actionlib` at all.

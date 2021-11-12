@@ -214,7 +214,8 @@ class Base:
 
 
 class Robot:
-    def __init__(self, namespace: str=rospy.get_namespace(), connect_navigation_on_init: bool=False) -> None:
+    def __init__(self, namespace: str=rospy.get_namespace(), connect_navigation_on_init: bool=False,
+            connect_manipulation_on_init: bool=False) -> None:
         _init_node()
         # Make sure namespace naming is correct.
         if not namespace.startswith('/'):
@@ -223,4 +224,4 @@ class Robot:
             namespace += '/'
         self.namespace = namespace
         self.base = Base(self, connect_navigation_on_init)
-        self.arm = Arm(self.namespace)
+        self.arm = Arm(self.namespace, connect_manipulation_on_init)

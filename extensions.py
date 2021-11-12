@@ -8,10 +8,13 @@ from robot_api.lib import execute_once
 
 
 class Arm:
-    def __init__(self, namespace: str) -> None:
+    def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         self._moveit_macros_action_client = actionlib.SimpleActionClient(namespace + "moveit_macros",
             MoveItMacroAction)
         self._ft_observer_action_client = actionlib.SimpleActionClient(namespace + "ft_observer", FtObserverAction)
+        if connect_manipulation_on_init:
+            execute_once(self._connect_moveit_macros)
+            execute_once(self._connect_ft_observer)
 
     def _connect_moveit_macros(self) -> Any:
         rospy.logdebug("Waiting for moveit_macros action server ...")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 import os
 import time
 import rospy
@@ -42,10 +42,10 @@ class Base(Component):
         super().__init__(robot.namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
         self.robot = robot
         self._tf_listener = tf.TransformListener()
-        self.waypoints = OrderedDict()  # type: Dict[str, Tuple[List[float], List[float]]]
+        self.waypoints = OrderedDict()  # type: Dict[str, Tuple[Sequence[float], Sequence[float]]]
         self._next_waypoint = 1
 
-    def _add_generic_waypoint(self, position: List[float], orientation: List[float]) -> None:
+    def _add_generic_waypoint(self, position: Sequence[float], orientation: Sequence[float]) -> None:
         """Add (position, orientation) with generic name to list of stored waypoints."""
         while "waypoint" + str(self._next_waypoint) in self.waypoints.keys():
             self._next_waypoint += 1
@@ -55,7 +55,7 @@ class Base(Component):
         """Convert OrderedDict representation of waypoints to str."""
         return '\n'.join(f"'{waypoint_name}': {waypoint}" for waypoint_name, waypoint in self.waypoints.items())
 
-    def _get_custom_waypoint_name(self, position: List[float], orientation: List[float]) -> str:
+    def _get_custom_waypoint_name(self, position: Sequence[float], orientation: Sequence[float]) -> str:
         """Return custom name of waypoint (position, orientation) if it exists."""
         for name, waypoint in self.waypoints.items():
             if not name.startswith("waypoint") and waypoint == (position, orientation):
@@ -63,7 +63,7 @@ class Base(Component):
         return ""
 
     def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
-            timeout: float=1.0) -> Tuple[List[float], List[float]]:
+            timeout: float=1.0) -> Tuple[Sequence[float], Sequence[float]]:
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
             position, orientation = self._tf_listener.lookupTransform(reference_frame,
@@ -92,14 +92,14 @@ class Base(Component):
         return position[0], position[1], yaw
 
     def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
-            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: List[float]=[],
-            orientation: List[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
+            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
+            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
             frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to goal pose using the following parameter options in descending priority:
         move(goal: MoveBaseGoal)
         move(pose: Pose)
-        move(position: List[float], orientation: List[float])
+        move(position: Sequence[float], orientation: Sequence[float])
         move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
 
         Optionally, call done_cb() afterwards if given.
@@ -170,7 +170,7 @@ class Base(Component):
         return self.move(position=position, orientation=orientation,
             frame_id=frame_id, timeout=timeout, done_cb=done_cb)
 
-    def add_waypoint(self, name: str, position: List[float], orientation: List[float]) -> None:
+    def add_waypoint(self, name: str, position: Sequence[float], orientation: Sequence[float]) -> None:
         """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""
         if name in self.waypoints.keys():
             rospy.logwarn(f"Overwriting waypoint: {self.waypoints[name]}")

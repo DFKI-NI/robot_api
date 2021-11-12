@@ -157,7 +157,8 @@ class Base:
         else:
             return self._move_base_action_client.send_goal(goal, done_cb)
 
-    def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0) -> Any:
+    def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to waypoint by name in frame_id's map with timeout."""
         if name not in self.waypoints.keys():
             if self.waypoints:
@@ -169,7 +170,7 @@ class Base:
 
         position, orientation = self.waypoints[name]
         return self.move(position=position, orientation=orientation,
-            frame_id=frame_id, timeout=timeout)
+            frame_id=frame_id, timeout=timeout, done_cb=done_cb)
 
     def add_waypoint(self, name: str, position: List[float], orientation: List[float]) -> None:
         """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""

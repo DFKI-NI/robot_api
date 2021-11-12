@@ -1,38 +1,12 @@
 #!/usr/bin/env python3
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 import rospy
-import genpy
-import actionlib
 from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, \
     FtObserverAction, FtObserverGoal
-from robot_api.lib import execute_once
+from robot_api.lib import Component
 
 
-class Extension:
-    def __init__(self, namespace: str, server_specs: Dict[str, genpy.Message], connect_on_init: bool=False) -> None:
-        self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
-        # Add clients to all action servers in server_specs found by published ROS topics.
-        for server_name, action_spec in server_specs.items():
-            if self._is_topic_of_type(namespace, server_name + "/result", action_spec.__name__ + "Result"):
-                action_client = actionlib.SimpleActionClient(namespace + server_name, action_spec)
-                # Note: server_name is a key in server_specs and thus unique.
-                self._action_clients[server_name] = action_client
-                if connect_on_init:
-                    self._connect(server_name)
-
-    def _connect(self, server_name: str) -> Any:
-        rospy.logdebug(f"Waiting for {server_name} action server ...")
-        return self._action_clients[server_name].wait_for_server()
-
-    def _is_topic_of_type(self, namespace: str, topic: str, message_type: str) -> bool:
-        """Return whether topic is published in namespace using message_type."""
-        for check_topic, check_message_type in rospy.get_published_topics(namespace):
-            if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
-                return True
-        return False
-
-
-class Arm(Extension):
+class Arm(Component):
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
             "moveit_macros": MoveItMacroAction,
@@ -42,7 +16,7 @@ class Arm(Extension):
     def execute(self, action_name: str, action_type: str="function",
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Execute moveit_macro of action_type with action_name. Optionally, call done_cb() afterwards if given."""
-        if not self._connect("moveit_macros"):
+        if not self.connect_once("moveit_macros"):
             rospy.logerr(f"Cannot execute MoveIt action.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return None
 
@@ -66,7 +40,7 @@ class Arm(Extension):
 
     def observe_user_interaction(self) -> Any:
         """Observe and return state."""
-        self._connect("ft_observer")
+        self.connect_once("ft_observer")
         goal = FtObserverGoal()
         goal.threshold = 5.0
         goal.timeout = 30

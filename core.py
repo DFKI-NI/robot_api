@@ -6,7 +6,6 @@ import time
 import rospy
 import rosnode
 import rosgraph
-import actionlib
 import tf
 import yaml
 from collections import OrderedDict
@@ -14,7 +13,7 @@ from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import execute_once, _s
+from robot_api.lib import Component, _s
 
 
 def _init_node() -> None:
@@ -38,20 +37,13 @@ def _init_node() -> None:
             pass
 
 
-class Base:
+class Base(Component):
     def __init__(self, robot: Robot, connect_navigation_on_init: bool) -> None:
+        super().__init__(robot.namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
         self.robot = robot
-        self._move_base_action_client = actionlib.SimpleActionClient(self.robot.namespace + "move_base",
-            MoveBaseAction)
         self._tf_listener = tf.TransformListener()
         self.waypoints = OrderedDict()  # type: Dict[str, Tuple[List[float], List[float]]]
         self._next_waypoint = 1
-        if connect_navigation_on_init:
-            execute_once(self._connect_move_base)
-
-    def _connect_move_base(self) -> Any:
-        rospy.logdebug("Waiting for move_base action server ...")
-        return self._move_base_action_client.wait_for_server()
 
     def _add_generic_waypoint(self, position: List[float], orientation: List[float]) -> None:
         """Add (position, orientation) with generic name to list of stored waypoints."""
@@ -112,7 +104,7 @@ class Base:
 
         Optionally, call done_cb() afterwards if given.
         """
-        if not execute_once(self._connect_move_base):
+        if not self.connect_once("move_base"):
             rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return
 
@@ -157,9 +149,9 @@ class Base:
             self._add_generic_waypoint(position, orientation)
         if done_cb is None:
             rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
-            return self._move_base_action_client.send_goal_and_wait(goal, rospy.Duration(timeout))
+            return self._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
         else:
-            return self._move_base_action_client.send_goal(goal, done_cb)
+            return self._action_clients["move_base"].send_goal(goal, done_cb)
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:

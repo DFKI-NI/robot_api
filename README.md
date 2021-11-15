@@ -8,6 +8,13 @@ The Robot API is an interface layer between an executor and ROS robot control. A
 
 On developer side, care is to be taken of the genericity of these actions by providing robot specific implementations towards this API. Special attention is necessary for capabilities which are not available on all robots. In these cases, the execution shall fail gracefully and not crash the system.
 
+## Installation
+
+Clone this repository somewhere, go into its `robot_api` repository folder, then:
+```
+pip install .
+```
+
 ## Demo
 
 Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick) repository installed and compiled, first start up a ROS environment, e.g.:
@@ -20,7 +27,7 @@ roslaunch mobipick_moveit_config moveit_planning_execution.launch use_pointcloud
 roslaunch mobipick_pick_n_place moveit_macros.launch
 ```
 
-To use this `robot_api`, just clone it somewhere, go into its `robot_api` folder and use a `python` console:
+To use this `robot_api`, just install it as described above and use a `python` console:
 ```
 import robot_api
 # Get a Robot object using the robot's namespace.
@@ -32,6 +39,8 @@ mobipick.arm.move("transport")
 # Move the robot's base using move_base.
 mobipick.base.move(21.0, 7.0, 3.141592)
 ```
+
+Note: You can use this package without installation by cloning this repository, going into its `robot_api` folder, and running these commands in a `python` console there.
 
 ## Discussion
 

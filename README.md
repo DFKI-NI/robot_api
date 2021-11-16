@@ -10,10 +10,7 @@ On developer side, care is to be taken of the genericity of these actions by pro
 
 ## Installation
 
-Clone this repository somewhere, go into its `robot_api` repository folder, then:
-```
-pip install .
-```
+Clone this repository into your catkin workspace and `catkin build` as usual. Source the resulting `setup.bash` file of your built catkin workspace afterwards.
 
 ## Demo
 
@@ -27,7 +24,7 @@ roslaunch mobipick_moveit_config moveit_planning_execution.launch use_pointcloud
 roslaunch mobipick_pick_n_place moveit_macros.launch
 ```
 
-To use this `robot_api`, just install it as described above and use a `python` console:
+To use this `robot_api`, just install it as described above and use a `python` console anywhere:
 ```
 import robot_api
 # Get a Robot object using the robot's namespace.
@@ -39,8 +36,6 @@ mobipick.arm.move("transport")
 # Move the robot's base using move_base.
 mobipick.base.move(21.0, 7.0, 3.141592)
 ```
-
-Note: You can use this package without installation by cloning this repository, going into its `robot_api` folder, and running these commands in a `python` console there.
 
 ## Discussion
 

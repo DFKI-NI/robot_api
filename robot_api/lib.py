@@ -7,6 +7,11 @@ import actionlib
 from robot_api.excepthook import Excepthook
 
 
+def _s(count: int, name: str, plural: str='s') -> str:
+    """Return name with or without plural ending depending on count."""
+    return f"{count} {name}{plural if count != 1 else ''}"
+
+
 def find_robot_namespaces() -> List[str]:
     """Return list of robot namespaces by searching published topics for move_base/goal."""
     topics = rospy.get_published_topics()
@@ -17,11 +22,6 @@ def find_robot_namespaces() -> List[str]:
             if match_result:
                 robot_namespaces.append(match_result.group(1))
     return robot_namespaces
-
-
-def _s(count: int, name: str, plural: str='s') -> str:
-    """Return name with or without plural ending depending on count."""
-    return f"{count} {name}{plural if count != 1 else ''}"
 
 
 class Action:
@@ -64,7 +64,8 @@ class ActionlibComponent:
                 if connect_on_init:
                     self.connect_once(server_name)
 
-    def _is_topic_of_type(self, namespace: str, topic: str, message_type: str) -> bool:
+    @staticmethod
+    def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
         """Return whether topic is published in namespace using message_type."""
         for check_topic, check_message_type in rospy.get_published_topics(namespace):
             if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:

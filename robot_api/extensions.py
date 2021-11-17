@@ -45,7 +45,7 @@ class Arm(ActionlibComponent):
         }, connect_manipulation_on_init)
 
 
-class MobipickArm(Arm):
+class MoveItMacrosArm(Arm):
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
         return ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)

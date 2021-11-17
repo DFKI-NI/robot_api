@@ -11,7 +11,7 @@ import yaml
 from collections import OrderedDict
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
-from robot_api.extensions import Arm, MobipickArm
+from robot_api.extensions import Arm, MoveItMacrosArm
 from robot_api.excepthook import Excepthook
 from robot_api.lib import Action, ActionlibComponent, _s
 
@@ -233,5 +233,5 @@ class Robot:
             namespace += '/'
         self.namespace = namespace
         self.base = Base(self, connect_navigation_on_init)
-        self.arm = MobipickArm(self.namespace, connect_manipulation_on_init) if "mobipick" in namespace \
-            else Arm(self.namespace, connect_manipulation_on_init)
+        self.arm = MoveItMacrosArm(self.namespace, connect_manipulation_on_init) \
+            if ActionlibComponent._is_topic_of_type(self.namespace, "moveit_macros/result", "MoveItMacroActionResult") else Arm(self.namespace, connect_manipulation_on_init)

@@ -11,9 +11,9 @@ import yaml
 from collections import OrderedDict
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
-from robot_api.extensions import Arm
+from robot_api.extensions import Arm, MobipickArm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import Component, _s
+from robot_api.lib import Action, ActionlibComponent, _s
 
 
 def _init_node() -> None:
@@ -37,7 +37,64 @@ def _init_node() -> None:
             pass
 
 
-class Base(Component):
+class BaseMoveAction(Action):
+    @staticmethod
+    def execute(base: Base, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
+            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
+            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
+            frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        if not base.connect_once("move_base"):
+            rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
+            return
+
+        # Parse a MoveBaseGoal from all the parameters.
+        if goal is None:
+            goal = MoveBaseGoal()
+            goal.target_pose.header.frame_id = frame_id
+            goal.target_pose.header.stamp = rospy.Time.now()
+            if pose is None:
+                if not position:
+                    if x is None or y is None:
+                        raise Excepthook.expect(ValueError("Goal, pose, position, or both x and y must be specified."))
+                    position = [x, y, z]
+                elif len(position) != 3:
+                    raise Excepthook.expect(ValueError("Parameter 'position' must have len 3."))
+                if not orientation:
+                    if yaw is None:
+                        raise Excepthook.expect(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
+                    orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
+                elif len(orientation) != 4:
+                    raise Excepthook.expect(ValueError("Parameter 'orientation' must have len 4."))
+                p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
+                p.x, p.y, p.z = position
+                q.x, q.y, q.z, q.w = orientation
+            else:
+                goal.target_pose.pose = pose
+                p, q = pose.position, pose.orientation
+                position = [p.x, p.y, p.z]
+                orientation = [q.x, q.y, q.z, q.w]
+        else:
+            p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
+            position = [p.x, p.y, p.z]
+            orientation = [q.x, q.y, q.z, q.w]
+
+        # Add waypoint if new, and move to goal.
+        is_new_goal = (position, orientation) not in base.waypoints.values()
+        custom_goal_name = base._get_custom_waypoint_name(position, orientation)
+        rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
+            + (f"'{custom_goal_name}' " if custom_goal_name else "")
+            + f"{(position, orientation)} ...")
+        if is_new_goal:
+            base._add_generic_waypoint(position, orientation)
+        if done_cb is None:
+            rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
+            return base._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
+        else:
+            return base._action_clients["move_base"].send_goal(goal, done_cb)
+
+
+class Base(ActionlibComponent):
     def __init__(self, robot: Robot, connect_navigation_on_init: bool) -> None:
         super().__init__(robot.namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
         self.robot = robot
@@ -91,85 +148,6 @@ class Base(Component):
         _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
         return position[0], position[1], yaw
 
-    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
-            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
-            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
-            frame_id: str="map", timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to goal pose using the following parameter options in descending priority:
-        move(goal: MoveBaseGoal)
-        move(pose: Pose)
-        move(position: Sequence[float], orientation: Sequence[float])
-        move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
-
-        Optionally, call done_cb() afterwards if given.
-        """
-        if not self.connect_once("move_base"):
-            rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
-            return
-
-        # Parse a MoveBaseGoal from all the parameters.
-        if goal is None:
-            goal = MoveBaseGoal()
-            goal.target_pose.header.frame_id = frame_id
-            goal.target_pose.header.stamp = rospy.Time.now()
-            if pose is None:
-                if not position:
-                    if x is None or y is None:
-                        raise Excepthook.expect(ValueError("Goal, pose, position, or both x and y must be specified."))
-                    position = [x, y, z]
-                elif len(position) != 3:
-                    raise Excepthook.expect(ValueError("Parameter 'position' must have len 3."))
-                if not orientation:
-                    if yaw is None:
-                        raise Excepthook.expect(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
-                    orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
-                elif len(orientation) != 4:
-                    raise Excepthook.expect(ValueError("Parameter 'orientation' must have len 4."))
-                p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
-                p.x, p.y, p.z = position
-                q.x, q.y, q.z, q.w = orientation
-            else:
-                goal.target_pose.pose = pose
-                p, q = pose.position, pose.orientation
-                position = [p.x, p.y, p.z]
-                orientation = [q.x, q.y, q.z, q.w]
-        else:
-            p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
-            position = [p.x, p.y, p.z]
-            orientation = [q.x, q.y, q.z, q.w]
-
-        # Add waypoint if new, and move to goal.
-        is_new_goal = (position, orientation) not in self.waypoints.values()
-        custom_goal_name = self._get_custom_waypoint_name(position, orientation)
-        rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
-            + (f"'{custom_goal_name}' " if custom_goal_name else "")
-            + f"{(position, orientation)} ...")
-        if is_new_goal:
-            self._add_generic_waypoint(position, orientation)
-        if done_cb is None:
-            rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
-            return self._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
-        else:
-            return self._action_clients["move_base"].send_goal(goal, done_cb)
-
-    def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to waypoint by name in frame_id's map with timeout.
-        Optionally, call done_cb() afterwards if given.
-        """
-        if name not in self.waypoints.keys():
-            if self.waypoints:
-                rospy.logerr(f"Waypoint '{name}' does not exist. Available waypoints:\n"
-                    + self._waypoints_to_str())
-            else:
-                rospy.logerr(f"No waypoints defined yet, so cannot use waypoint '{name}'.")
-            return
-
-        position, orientation = self.waypoints[name]
-        return self.move(position=position, orientation=orientation,
-            frame_id=frame_id, timeout=timeout, done_cb=done_cb)
-
     def add_waypoint(self, name: str, position: Sequence[float], orientation: Sequence[float]) -> None:
         """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""
         if name in self.waypoints.keys():
@@ -210,6 +188,39 @@ class Base(Component):
         """Output currently stored waypoints with rospy.loginfo()."""
         rospy.loginfo(f"Available waypoints:\n" + self._waypoints_to_str())
 
+    def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to waypoint by name in frame_id's map with timeout.
+        Optionally, call done_cb() afterwards if given.
+        """
+        if name not in self.waypoints.keys():
+            if self.waypoints:
+                rospy.logerr(f"Waypoint '{name}' does not exist. Available waypoints:\n"
+                    + self._waypoints_to_str())
+            else:
+                rospy.logerr(f"No waypoints defined yet, so cannot use waypoint '{name}'.")
+            return
+
+        position, orientation = self.waypoints[name]
+        return BaseMoveAction.execute(self, position=position, orientation=orientation,
+            frame_id=frame_id, timeout=timeout, done_cb=done_cb)
+
+    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
+            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
+            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
+            frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to goal pose using the following parameter options in descending priority:
+        move(goal: MoveBaseGoal)
+        move(pose: Pose)
+        move(position: Sequence[float], orientation: Sequence[float])
+        move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
+
+        Optionally, call done_cb() afterwards if given.
+        """
+        return BaseMoveAction.execute(self, x, y, yaw, pitch, roll, z, position, orientation, pose, goal, frame_id,
+            timeout, done_cb)
+
 
 class Robot:
     def __init__(self, namespace: str=rospy.get_namespace(), connect_navigation_on_init: bool=False,
@@ -222,4 +233,5 @@ class Robot:
             namespace += '/'
         self.namespace = namespace
         self.base = Base(self, connect_navigation_on_init)
-        self.arm = Arm(self.namespace, connect_manipulation_on_init)
+        self.arm = MobipickArm(self.namespace, connect_manipulation_on_init) if "mobipick" in namespace \
+            else Arm(self.namespace, connect_manipulation_on_init)

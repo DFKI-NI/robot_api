@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from typing import Any, Dict, List
+import re
 import rospy
 import genpy
 import actionlib
-import re
+from robot_api.excepthook import Excepthook
 
 
 def find_robot_namespaces() -> List[str]:
@@ -23,7 +24,34 @@ def _s(count: int, name: str, plural: str='s') -> str:
     return f"{count} {name}{plural if count != 1 else ''}"
 
 
-class Component:
+class Action:
+    """
+    Generic Action interface.
+
+    Subclass Action to implement a concrete action with a typed parameter interface you specify for its execute()
+    method. The first parameter should always be the object which performs the action.
+
+    Instantiate your subclass if you want a specific action instance with parameter values being set. By creating
+    this instance with the same parameter interface as you define for the execute() method, you can execute this
+    action simply by calling it, e.g., action().
+    """
+    def __init__(self, obj: Any, *args: Any, **kwargs: Any) -> None:
+        self.obj = obj
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self) -> bool:
+        if hasattr(self, "execute"):
+            return self.__getattribute__("execute")(self.obj, *self.args, **self.kwargs)
+
+        raise Excepthook.expect(NotImplementedError("You must subclass Action and implement its execute() method!"))
+
+
+class ActionlibComponent:
+    """
+    Robot component, which automatically connects to ROS actionlib servers given in server_specs.
+    Unless you connect_on_init, connection will be established on first usage.
+    """
     def __init__(self, namespace: str, server_specs: Dict[str, genpy.Message], connect_on_init: bool=False) -> None:
         self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
         self._connection_results = {}  # type: Dict[actionlib.SimpleActionClient, Any]

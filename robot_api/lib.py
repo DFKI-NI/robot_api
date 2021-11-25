@@ -63,6 +63,8 @@ class ActionlibComponent:
                 self._action_clients[server_name] = action_client
                 if connect_on_init:
                     self.connect_once(server_name)
+            else:
+                rospy.logwarn(f"Connecting to actionlib server '{server_name}' failed.")
 
     @staticmethod
     def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:

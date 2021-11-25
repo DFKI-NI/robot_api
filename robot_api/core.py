@@ -37,47 +37,17 @@ def _init_node() -> None:
             pass
 
 
-class BaseMoveAction(Action):
+class BaseMoveToGoalAction(Action):
     @staticmethod
-    def execute(base: Base, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
-            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
-            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
-            frame_id: str="map", timeout: float=60.0,
+    def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         if not base.connect_once("move_base"):
             rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
             return
 
-        # Parse a MoveBaseGoal from all the parameters.
-        if goal is None:
-            goal = MoveBaseGoal()
-            goal.target_pose.header.frame_id = frame_id
-            goal.target_pose.header.stamp = rospy.Time.now()
-            if pose is None:
-                if not position:
-                    if x is None or y is None:
-                        raise Excepthook.expect(ValueError("Goal, pose, position, or both x and y must be specified."))
-                    position = [x, y, z]
-                elif len(position) != 3:
-                    raise Excepthook.expect(ValueError("Parameter 'position' must have len 3."))
-                if not orientation:
-                    if yaw is None:
-                        raise Excepthook.expect(ValueError("Goal, pose, orientation, or yaw angle must be specified."))
-                    orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
-                elif len(orientation) != 4:
-                    raise Excepthook.expect(ValueError("Parameter 'orientation' must have len 4."))
-                p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
-                p.x, p.y, p.z = position
-                q.x, q.y, q.z, q.w = orientation
-            else:
-                goal.target_pose.pose = pose
-                p, q = pose.position, pose.orientation
-                position = [p.x, p.y, p.z]
-                orientation = [q.x, q.y, q.z, q.w]
-        else:
-            p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
-            position = [p.x, p.y, p.z]
-            orientation = [q.x, q.y, q.z, q.w]
+        p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
+        position = [p.x, p.y, p.z]
+        orientation = [q.x, q.y, q.z, q.w]
 
         # Add waypoint if new, and move to goal.
         is_new_goal = (position, orientation) not in base.waypoints.values()
@@ -92,6 +62,40 @@ class BaseMoveAction(Action):
             return base._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
         else:
             return base._action_clients["move_base"].send_goal(goal, done_cb)
+
+
+class BaseMoveToPoseAction(Action):
+    @staticmethod
+    def execute(base: Base, pose: Pose, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = frame_id
+        goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose = pose
+        return BaseMoveToGoalAction.execute(base, goal, timeout, done_cb)
+
+
+class BaseMoveToPositionOrientationAction(Action):
+    @staticmethod
+    def execute(base: Base, position: Sequence[float], orientation: Sequence[float], frame_id: str="map",
+            timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        assert len(position) == 3, "Parameter 'position' must have len 3."
+        assert len(orientation) == 4, "Parameter 'orientation' must have len 4."
+        pose = Pose()
+        p, q = pose.position, pose.orientation
+        p.x, p.y, p.z = position
+        q.x, q.y, q.z, q.w = orientation
+        return BaseMoveToPoseAction.execute(base, pose, frame_id, timeout, done_cb)
+
+
+class BaseMoveToCoordinatesAction(Action):
+    @staticmethod
+    def execute(base: Base, x: float, y: float, yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0,
+            frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        position = (x, y, z)
+        orientation = list(tf.transformations.quaternion_from_euler(roll, pitch, yaw))
+        return BaseMoveToPositionOrientationAction.execute(base, position, orientation, frame_id, timeout, done_cb)
 
 
 class Base(ActionlibComponent):
@@ -202,7 +206,7 @@ class Base(ActionlibComponent):
             return
 
         position, orientation = self.waypoints[name]
-        return BaseMoveAction.execute(self, position=position, orientation=orientation,
+        return BaseMoveToPositionOrientationAction.execute(self, position=position, orientation=orientation,
             frame_id=frame_id, timeout=timeout, done_cb=done_cb)
 
     def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
@@ -218,8 +222,23 @@ class Base(ActionlibComponent):
 
         Optionally, call done_cb() afterwards if given.
         """
-        return BaseMoveAction.execute(self, x, y, yaw, pitch, roll, z, position, orientation, pose, goal, frame_id,
-            timeout, done_cb)
+        if goal is None:
+            if pose is None:
+                if not position or not orientation:
+                    if not position and not orientation:
+                        if x is None or y is None or yaw is None:
+                            raise Excepthook.expect(ValueError("1. Goal, 2. pose, 3. position and orientation,"
+                                " or 4. x, y, and yaw must be specified."))
+                        return BaseMoveToCoordinatesAction.execute(self, x, y, yaw, pitch, roll, z, frame_id, timeout,
+                            done_cb)
+                    else:
+                        # Raise error if only one of position and orientation is specified.
+                        raise Excepthook.expect(ValueError("Both 'position' and 'orientation' parameters"
+                            " must be specified."))
+                return BaseMoveToPositionOrientationAction.execute(self, position, orientation, frame_id, timeout,
+                    done_cb)
+            return BaseMoveToPoseAction.execute(self, pose, frame_id, timeout, done_cb)
+        return BaseMoveToGoalAction.execute(self, goal, timeout, done_cb)
 
 
 class Robot:

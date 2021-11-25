@@ -171,14 +171,14 @@ class Base(ActionlibComponent):
                     # Note: Write tuple as list for nicer format.
                     text_file.write(f"'{waypoint_name}': {list(waypoint)}\n")
         except Exception:
-            rospy.logerr(f"Cannot write to file '{filepath}'!")
+            rospy.logerr(f"Error while writing to file '{filepath}'!")
 
     def load_waypoints(self, filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         """Load waypoints from file, default: '~/.ros/robot_api_waypoints.txt'."""
         filepath = os.path.expanduser(filepath)
         try:
             with open(filepath, 'r') as text_file:
-                lines = [line.strip() for line in text_file.readlines()]
+                lines = [line.strip() for line in text_file.readlines() if line.strip()]
             for line in lines:
                 elements = yaml.safe_load(line)
                 assert isinstance(elements, dict), f"Invalid format in line: {line}"
@@ -186,7 +186,7 @@ class Base(ActionlibComponent):
                     self.add_waypoint(name, position, orientation)
             rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(self.waypoints)} in total.")
         except Exception:
-            rospy.logerr(f"Cannot read from file '{filepath}'!")
+            rospy.logerr(f"Error while reading from file '{filepath}'!")
 
     def print_waypoints(self) -> None:
         """Output currently stored waypoints with rospy.loginfo()."""

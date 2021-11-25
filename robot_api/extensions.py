@@ -59,7 +59,3 @@ class MoveItMacrosArm(Arm):
         """Move arm to pose named goal_name. Optionally, call done_cb() afterwards if given."""
         rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")
         return ArmMoveItMacroAction.execute(self, "target", goal_name, done_cb)
-
-    def observe_force_torque(self, threshold: float, timeout: float) -> bool:
-        """Read from force torque sensor using threshold and timeout, then return whether it was successful."""
-        return ArmForceTorqueObserverAction.execute(self, threshold, timeout)

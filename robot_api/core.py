@@ -1,40 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
-import os
+from typing import Any, Callable, Optional, Sequence, Tuple
 import time
 import rospy
-import rosnode
-import rosgraph
 import tf
-import yaml
-from collections import OrderedDict
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm, MoveItMacrosArm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import Action, ActionlibComponent, _s
-
-
-def _init_node() -> None:
-    """Initialize ROS node for the current process if not already done."""
-    if not rosgraph.is_master_online():
-        rospy.logdebug("Waiting for ROS master node to go online ...")
-        while not rosgraph.is_master_online():
-            time.sleep(1.0)
-    if rospy.is_shutdown():
-        rospy.logerr("ROS is shutting down.")
-        return
-
-    name = f"robot_api_{os.getpid()}"
-    # Note: ROS cannot check if a node is initialized, so we have to try.
-    #   At least check if we initialized it ourselves before.
-    if ('/' + name) not in rosnode.get_node_names():
-        try:
-            rospy.init_node(name)
-            rospy.logdebug(f"ROS node '{name}' initialized.")
-        except rospy.ROSException:
-            pass
+from robot_api.lib import _init_node, Action, ActionlibComponent, Storage
 
 
 class BaseMoveToGoalAction(Action):
@@ -50,13 +24,13 @@ class BaseMoveToGoalAction(Action):
         orientation = [q.x, q.y, q.z, q.w]
 
         # Add waypoint if new, and move to goal.
-        is_new_goal = (position, orientation) not in base.waypoints.values()
-        custom_goal_name = base._get_custom_waypoint_name(position, orientation)
+        is_new_goal = (position, orientation) not in Storage.waypoints.values()
+        custom_goal_name = Storage._get_custom_waypoint_name(position, orientation)
         rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
             + (f"'{custom_goal_name}' " if custom_goal_name else "")
             + f"{(position, orientation)} ...")
         if is_new_goal:
-            base._add_generic_waypoint(position, orientation)
+            Storage._add_generic_waypoint(position, orientation)
         if done_cb is None:
             rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
             return base._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
@@ -103,25 +77,6 @@ class Base(ActionlibComponent):
         super().__init__(robot.namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
         self.robot = robot
         self._tf_listener = tf.TransformListener()
-        self.waypoints = OrderedDict()  # type: Dict[str, Tuple[Sequence[float], Sequence[float]]]
-        self._next_waypoint = 1
-
-    def _add_generic_waypoint(self, position: Sequence[float], orientation: Sequence[float]) -> None:
-        """Add (position, orientation) with generic name to list of stored waypoints."""
-        while "waypoint" + str(self._next_waypoint) in self.waypoints.keys():
-            self._next_waypoint += 1
-        self.waypoints["waypoint" + str(self._next_waypoint)] = (position, orientation)
-
-    def _waypoints_to_str(self) -> str:
-        """Convert OrderedDict representation of waypoints to str."""
-        return '\n'.join(f"'{waypoint_name}': {waypoint}" for waypoint_name, waypoint in self.waypoints.items())
-
-    def _get_custom_waypoint_name(self, position: Sequence[float], orientation: Sequence[float]) -> str:
-        """Return custom name of waypoint (position, orientation) if it exists."""
-        for name, waypoint in self.waypoints.items():
-            if not name.startswith("waypoint") and waypoint == (position, orientation):
-                return name
-        return ""
 
     def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
             timeout: float=1.0) -> Tuple[Sequence[float], Sequence[float]]:
@@ -152,60 +107,20 @@ class Base(ActionlibComponent):
         _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
         return position[0], position[1], yaw
 
-    def add_waypoint(self, name: str, position: Sequence[float], orientation: Sequence[float]) -> None:
-        """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""
-        if name in self.waypoints.keys():
-            rospy.logwarn(f"Overwriting waypoint: {self.waypoints[name]}")
-        self.waypoints[name] = (position, orientation)
-
-    def save_waypoints(self, filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-        """Save waypoints to file, default: '~/.ros/robot_api_waypoints.txt'."""
-        if not self.waypoints:
-            rospy.logwarn("No waypoints to save.")
-            return
-
-        filepath = os.path.expanduser(filepath)
-        try:
-            with open(filepath, 'w') as text_file:
-                for waypoint_name, waypoint in self.waypoints.items():
-                    # Note: Write tuple as list for nicer format.
-                    text_file.write(f"'{waypoint_name}': {list(waypoint)}\n")
-        except Exception:
-            rospy.logerr(f"Error while writing to file '{filepath}'!")
-
-    def load_waypoints(self, filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-        """Load waypoints from file, default: '~/.ros/robot_api_waypoints.txt'."""
-        filepath = os.path.expanduser(filepath)
-        try:
-            with open(filepath, 'r') as text_file:
-                lines = [line.strip() for line in text_file.readlines() if line.strip()]
-            for line in lines:
-                elements = yaml.safe_load(line)
-                assert isinstance(elements, dict), f"Invalid format in line: {line}"
-                for name, (position, orientation) in elements.items():
-                    self.add_waypoint(name, position, orientation)
-            rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(self.waypoints)} in total.")
-        except Exception:
-            rospy.logerr(f"Error while reading from file '{filepath}'!")
-
-    def print_waypoints(self) -> None:
-        """Output currently stored waypoints with rospy.loginfo()."""
-        rospy.loginfo(f"Available waypoints:\n" + self._waypoints_to_str())
-
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to waypoint by name in frame_id's map with timeout.
         Optionally, call done_cb() afterwards if given.
         """
-        if name not in self.waypoints.keys():
-            if self.waypoints:
+        if name not in Storage.waypoints.keys():
+            if Storage.waypoints:
                 rospy.logerr(f"Waypoint '{name}' does not exist. Available waypoints:\n"
-                    + self._waypoints_to_str())
+                    + Storage._waypoints_to_str())
             else:
                 rospy.logerr(f"No waypoints defined yet, so cannot use waypoint '{name}'.")
             return
 
-        position, orientation = self.waypoints[name]
+        position, orientation = Storage.waypoints[name]
         return BaseMoveToPositionOrientationAction.execute(self, position=position, orientation=orientation,
             frame_id=frame_id, timeout=timeout, done_cb=done_cb)
 

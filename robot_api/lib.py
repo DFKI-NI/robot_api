@@ -14,7 +14,11 @@ def _s(count: int, name: str, plural: str='s') -> str:
 
 def find_robot_namespaces() -> List[str]:
     """Return list of robot namespaces by searching published topics for move_base/goal."""
-    topics = rospy.get_published_topics()
+    try:
+        topics = rospy.get_published_topics()
+    except ConnectionRefusedError as e:
+        raise Excepthook.expect(e)
+
     robot_namespaces = []  # type: List[str]
     for topic, message_type in topics:
         if message_type == "move_base_msgs/MoveBaseActionGoal":

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
+import re
 import rospy
+import rosparam
 from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, \
     FtObserverAction, FtObserverGoal
 from robot_api.lib import Action, ActionlibComponent
@@ -43,9 +45,12 @@ class Arm(ActionlibComponent):
             "moveit_macros": MoveItMacroAction,
             "ft_observer": FtObserverAction
         }, connect_manipulation_on_init)
+        self.namespace = namespace
 
 
 class MoveItMacrosArm(Arm):
+    ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
+
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
         return ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)
@@ -59,3 +64,27 @@ class MoveItMacrosArm(Arm):
         """Move arm to pose named goal_name. Optionally, call done_cb() afterwards if given."""
         rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")
         return ArmMoveItMacroAction.execute(self, "target", goal_name, done_cb)
+
+    def get_state_names(self) -> List[str]:
+        """Get group state names from semantic robot description parameter used for arm poses."""
+        params = rosparam.list_params(self.namespace)
+        # If default param name exists, use it.
+        if self.namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
+            param = rosparam.get_param(self.namespace + self.ROBOT_DESCRIPTION_SEMANTIC)
+        else:
+            # Otherwise search for param which ends with '_semantic', according to planning_context.launch.
+            for param in params:
+                if param.endswith("_semantic"):
+                    break
+            else:
+                return []
+
+        # Collect all names from group states associated with group "arm".
+        tokens = re.findall(r'<group_state ([= \"\w]+)>', param)
+        names = []  # type: List[str]
+        for token in tokens:
+            if "group='arm'" in token or 'group="arm"' in token:
+                match_result = re.search(r'name=["\'](\w+)["\']', token)
+                if match_result:
+                    names.append(match_result.group(1))
+        return names

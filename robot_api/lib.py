@@ -49,14 +49,14 @@ class Action:
     this instance with the same parameter interface as you define for the execute() method, you can execute this
     action simply by calling it, e.g., action().
     """
-    def __init__(cls, obj: Any, *args: Any, **kwargs: Any) -> None:
-        cls.obj = obj
-        cls.args = args
-        cls.kwargs = kwargs
+    def __init__(self, obj: Any, *args: Any, **kwargs: Any) -> None:
+        self.obj = obj
+        self.args = args
+        self.kwargs = kwargs
 
-    def __call__(cls) -> bool:
-        if hasattr(cls, "execute"):
-            return cls.__getattribute__("execute")(cls.obj, *cls.args, **cls.kwargs)
+    def __call__(self) -> bool:
+        if hasattr(self, "execute"):
+            return self.__getattribute__("execute")(self.obj, *self.args, **self.kwargs)
 
         raise Excepthook.expect(NotImplementedError("You must subclass Action and implement its execute() method!"))
 
@@ -66,35 +66,35 @@ class ActionlibComponent:
     Robot component, which automatically connects to ROS actionlib servers given in server_specs.
     Unless you connect_on_init, connection will be established on first usage.
     """
-    def __init__(cls, namespace: str, server_specs: Dict[str, genpy.Message], connect_on_init: bool=False) -> None:
-        cls._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
-        cls._connection_results = {}  # type: Dict[actionlib.SimpleActionClient, Any]
-        # Add clients to all action servers in server_specs found by published ROS topics.
-        for server_name, action_spec in server_specs.items():
-            if cls._is_topic_of_type(namespace, server_name + "/result", action_spec.__name__ + "Result"):
-                action_client = actionlib.SimpleActionClient(namespace + server_name, action_spec)
-                # Note: server_name is a key in server_specs and thus unique.
-                cls._action_clients[server_name] = action_client
-                if connect_on_init:
-                    cls.connect_once(server_name)
-            else:
-                rospy.logwarn(f"Connecting to actionlib server '{server_name}' failed.")
+    def __init__(self, namespace: str, server_specs: Dict[str, genpy.Message], connect_on_init: bool=False) -> None:
+        self.namespace = namespace
+        self._server_specs = server_specs
+        self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
+        if connect_on_init:
+            for server_name in server_specs.keys():
+                self.connect(server_name)
 
-    @staticmethod
-    def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
-        """Return whether topic is published in namespace using message_type."""
-        for check_topic, check_message_type in rospy.get_published_topics(namespace):
-            if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
-                return True
-        return False
+    def connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
+        """Connect action client to server_name if not yet successfully done."""
+        if not server_name in self._action_clients.keys():
+            if not server_name in self._server_specs.keys():
+                rospy.logerr(f"Cannot connect to server '{server_name}' with unknown type.")
+                return False
 
-    def connect_once(cls, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> Any:
-        """Connect action client to server_name only once and return its cached result on further calls."""
-        action_client = cls._action_clients[server_name]
-        if action_client not in cls._connection_results.keys():
-            rospy.logdebug(f"Waiting for {server_name} action server ...")
-            cls._connection_results[action_client] = action_client.wait_for_server(timeout=timeout)
-        return cls._connection_results[action_client]
+            action_spec = self._server_specs[server_name]
+            if not _is_topic_of_type(self.namespace, server_name + "/result", action_spec.__name__ + "Result"):
+                rospy.logerr(f"Server '{server_name}' not found by topic.")
+                return False
+
+            action_client = actionlib.SimpleActionClient(self.namespace + server_name, action_spec)
+            if not action_client.wait_for_server(timeout=timeout):
+                rospy.logerr(f"Timeout while trying to connect to server '{server_name}'."
+                    f"{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
+                return False
+
+            # Note: server_name is a key in server_specs and thus unique.
+            self._action_clients[server_name] = action_client
+        return True
 
 
 def _s(count: int, name: str, plural: str='s') -> str:
@@ -121,6 +121,14 @@ def _init_node() -> None:
             rospy.logdebug(f"ROS node '{name}' initialized.")
         except rospy.ROSException:
             pass
+
+
+def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
+    """Return whether topic is published in namespace using message_type."""
+    for check_topic, check_message_type in rospy.get_published_topics(namespace):
+        if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
+            return True
+    return False
 
 
 def find_robot_namespaces() -> List[str]:

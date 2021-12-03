@@ -6,15 +6,14 @@ import rospy
 import rosparam
 from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, \
     FtObserverAction, FtObserverGoal
-from robot_api.lib import Action, ActionlibComponent
+from robot_api.lib import _is_topic_of_type, Action, ActionlibComponent
 
 
 class ArmMoveItMacroAction(Action):
     @staticmethod
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        if not arm.connect_once("moveit_macros"):
-            rospy.logerr("Cannot connect to moveit_macros.")
+        if not arm.connect("moveit_macros"):
             return None
 
         goal = MoveItMacroGoal(type=goal_type, name=goal_name)
@@ -27,8 +26,7 @@ class ArmMoveItMacroAction(Action):
 class ArmForceTorqueObserverAction(Action):
     @staticmethod
     def execute(arm: Arm, threshold: float, timeout: float) -> bool:
-        if not arm.connect_once("ft_observer"):
-            rospy.logerr("Cannot connect to ft_observer.")
+        if not arm.connect("ft_observer"):
             return False
 
         goal = FtObserverGoal(threshold=threshold, timeout=timeout)
@@ -40,16 +38,13 @@ class ArmForceTorqueObserverAction(Action):
 
 
 class Arm(ActionlibComponent):
+    ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
+
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
             "moveit_macros": MoveItMacroAction,
             "ft_observer": FtObserverAction
         }, connect_manipulation_on_init)
-        self.namespace = namespace
-
-
-class MoveItMacrosArm(Arm):
-    ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
 
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""

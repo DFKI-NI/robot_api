@@ -6,7 +6,7 @@ import rospy
 import tf
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
-from robot_api.extensions import Arm, MoveItMacrosArm
+from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
 from robot_api.lib import _init_node, Action, ActionlibComponent, Storage
 
@@ -15,8 +15,7 @@ class BaseMoveToGoalAction(Action):
     @staticmethod
     def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        if not base.connect_once("move_base"):
-            rospy.logerr(f"Cannot move base to goal.{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
+        if not base.connect("move_base"):
             return
 
         p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
@@ -73,9 +72,8 @@ class BaseMoveToCoordinatesAction(Action):
 
 
 class Base(ActionlibComponent):
-    def __init__(self, robot: Robot, connect_navigation_on_init: bool) -> None:
-        super().__init__(robot.namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
-        self.robot = robot
+    def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
+        super().__init__(namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
         self._tf_listener = tf.TransformListener()
 
     def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",
@@ -83,7 +81,7 @@ class Base(ActionlibComponent):
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
             position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                self.robot.namespace + robot_frame, rospy.Time(0))
+                self.namespace + robot_frame, rospy.Time(0))
         except (tf.LookupException, tf.ExtrapolationException) as e:
             # If timeout is given, repeatedly try again.
             if timeout:
@@ -92,7 +90,7 @@ class Base(ActionlibComponent):
                     try:
                         time.sleep(1.0)
                         position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                            self.robot.namespace + robot_frame, rospy.Time(0))
+                            self.namespace + robot_frame, rospy.Time(0))
                         return position, orientation
                     except tf.LookupException:
                         pass
@@ -166,6 +164,5 @@ class Robot:
         if not namespace.endswith('/'):
             namespace += '/'
         self.namespace = namespace
-        self.base = Base(self, connect_navigation_on_init)
-        self.arm = MoveItMacrosArm(self.namespace, connect_manipulation_on_init) \
-            if ActionlibComponent._is_topic_of_type(self.namespace, "moveit_macros/result", "MoveItMacroActionResult") else Arm(self.namespace, connect_manipulation_on_init)
+        self.base = Base(namespace, connect_navigation_on_init)
+        self.arm = Arm(namespace, connect_manipulation_on_init)

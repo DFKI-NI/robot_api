@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>robot_api</name>
-  <version>0.6.0</version>
+  <version>0.7.0</version>
   <description>A pre- and concise Python API to control robots with simple commands.</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -51,6 +51,11 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
 
+  <depend>actionlib_msgs</depend>
+  <depend>eigen_conversions</depend>
+  <depend>geometry_msgs</depend>
+  <depend>moveit_msgs</depend>
+  <depend>moveit_ros_planning_interface</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

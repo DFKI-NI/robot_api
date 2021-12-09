@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from typing import Any, Dict, List, Sequence, Tuple
 import os
+import shlex
+import subprocess
 import time
 import re
 import rospy
@@ -129,6 +131,14 @@ def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
         if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
             return True
     return False
+
+
+def execute(command: str, sleep_duration: int=0) -> None:
+    """Execute command in a new subprocess and sleep for sleep_duration seconds."""
+    rospy.loginfo(command)
+    subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL)
+    if sleep_duration:
+        time.sleep(sleep_duration)
 
 
 def find_robot_namespaces() -> List[str]:

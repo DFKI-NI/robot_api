@@ -4,15 +4,16 @@ from typing import Any, Callable, List, Optional
 import re
 import rospy
 import rosparam
-from mobipick_pick_n_place.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, \
-    FtObserverAction, FtObserverGoal
-from robot_api.lib import _is_topic_of_type, Action, ActionlibComponent
+from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal
+from robot_api.lib import Action, ActionlibComponent, _is_topic_of_type, execute
 
 
 class ArmMoveItMacroAction(Action):
     @staticmethod
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
+        if not _is_topic_of_type(arm.namespace, "moveit_macros/result", "MoveItMacroActionResult"):
+            execute(f"roslaunch robot_api moveit_macros.launch namespace:={arm.namespace}", 5)
         if not arm.connect("moveit_macros"):
             return None
 

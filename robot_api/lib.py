@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple, Union
 import os
 import shlex
 import subprocess
@@ -13,6 +13,48 @@ import actionlib
 import yaml
 from collections import OrderedDict
 from robot_api.excepthook import Excepthook
+
+
+def _s(count: int, name: str, plural: str='s') -> str:
+    """Return name with or without plural ending depending on count."""
+    return f"{count} {name}{plural if count != 1 else ''}"
+
+
+def _init_node() -> None:
+    """Initialize ROS node for the current process if not already done."""
+    if not rosgraph.is_master_online():
+        rospy.logdebug("Waiting for ROS master node to go online ...")
+        while not rosgraph.is_master_online():
+            time.sleep(1.0)
+    if rospy.is_shutdown():
+        rospy.logerr("ROS is shutting down.")
+        return
+
+    name = f"robot_api_{os.getpid()}"
+    # Note: ROS cannot check if a node is initialized, so we have to try.
+    #   At least check if we initialized it ourselves before.
+    if ('/' + name) not in rosnode.get_node_names():
+        try:
+            rospy.init_node(name)
+            rospy.logdebug(f"ROS node '{name}' initialized.")
+        except rospy.ROSException:
+            pass
+
+
+def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
+    """Return whether topic is published in namespace using message_type."""
+    for check_topic, check_message_type in rospy.get_published_topics(namespace):
+        if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
+            return True
+    return False
+
+
+def _execute(command: str, sleep_duration: int=0) -> None:
+    """Execute command in a new subprocess and sleep for sleep_duration seconds."""
+    rospy.loginfo(command)
+    subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL)
+    if sleep_duration:
+        time.sleep(sleep_duration)
 
 
 class Storage:
@@ -68,7 +110,8 @@ class ActionlibComponent:
     Robot component, which automatically connects to ROS actionlib servers given in server_specs.
     Unless you connect_on_init, connection will be established on first usage.
     """
-    def __init__(self, namespace: str, server_specs: Dict[str, genpy.Message], connect_on_init: bool=False) -> None:
+    def __init__(self, namespace: str, server_specs: Dict[str, Union[Tuple[genpy.Message],
+            Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
         self.namespace = namespace
         self._server_specs = server_specs
         self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
@@ -76,19 +119,30 @@ class ActionlibComponent:
             for server_name in server_specs.keys():
                 self.connect(server_name)
 
+    def _has_actionlib_result(self, server_name: str) -> bool:
+        """Return whether there exists an actionlib result topic for server_name."""
+        action_spec = self._server_specs[server_name][0]
+        return _is_topic_of_type(self.namespace, server_name + "/result", action_spec.__name__ + "Result")
+
     def connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
         """Connect action client to server_name if not yet successfully done."""
         if not server_name in self._action_clients.keys():
+            server_spec = self._server_specs[server_name]
+            # action_spec = self._server_specs[server_name][0]
+            has_actionlib_result = self._has_actionlib_result(server_name)
+            if not has_actionlib_result:
+                if len(server_spec) == 3:
+                    _execute(*server_spec[1:])
+                    has_actionlib_result = self._has_actionlib_result(server_name)
+                if not has_actionlib_result:
+                    rospy.logerr(f"Server '{server_name}' not found by topic.")
+                    return False
+
             if not server_name in self._server_specs.keys():
                 rospy.logerr(f"Cannot connect to server '{server_name}' with unknown type.")
                 return False
 
-            action_spec = self._server_specs[server_name]
-            if not _is_topic_of_type(self.namespace, server_name + "/result", action_spec.__name__ + "Result"):
-                rospy.logerr(f"Server '{server_name}' not found by topic.")
-                return False
-
-            action_client = actionlib.SimpleActionClient(self.namespace + server_name, action_spec)
+            action_client = actionlib.SimpleActionClient(self.namespace + server_name, server_spec[0])
             if not action_client.wait_for_server(timeout=timeout):
                 rospy.logerr(f"Timeout while trying to connect to server '{server_name}'."
                     f"{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
@@ -97,48 +151,6 @@ class ActionlibComponent:
             # Note: server_name is a key in server_specs and thus unique.
             self._action_clients[server_name] = action_client
         return True
-
-
-def _s(count: int, name: str, plural: str='s') -> str:
-    """Return name with or without plural ending depending on count."""
-    return f"{count} {name}{plural if count != 1 else ''}"
-
-
-def _init_node() -> None:
-    """Initialize ROS node for the current process if not already done."""
-    if not rosgraph.is_master_online():
-        rospy.logdebug("Waiting for ROS master node to go online ...")
-        while not rosgraph.is_master_online():
-            time.sleep(1.0)
-    if rospy.is_shutdown():
-        rospy.logerr("ROS is shutting down.")
-        return
-
-    name = f"robot_api_{os.getpid()}"
-    # Note: ROS cannot check if a node is initialized, so we have to try.
-    #   At least check if we initialized it ourselves before.
-    if ('/' + name) not in rosnode.get_node_names():
-        try:
-            rospy.init_node(name)
-            rospy.logdebug(f"ROS node '{name}' initialized.")
-        except rospy.ROSException:
-            pass
-
-
-def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
-    """Return whether topic is published in namespace using message_type."""
-    for check_topic, check_message_type in rospy.get_published_topics(namespace):
-        if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
-            return True
-    return False
-
-
-def execute(command: str, sleep_duration: int=0) -> None:
-    """Execute command in a new subprocess and sleep for sleep_duration seconds."""
-    rospy.loginfo(command)
-    subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL)
-    if sleep_duration:
-        time.sleep(sleep_duration)
 
 
 def find_robot_namespaces() -> List[str]:

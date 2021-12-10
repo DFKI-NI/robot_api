@@ -5,15 +5,13 @@ import re
 import rospy
 import rosparam
 from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal
-from robot_api.lib import Action, ActionlibComponent, _is_topic_of_type, execute
+from robot_api.lib import Action, ActionlibComponent
 
 
 class ArmMoveItMacroAction(Action):
     @staticmethod
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        if not _is_topic_of_type(arm.namespace, "moveit_macros/result", "MoveItMacroActionResult"):
-            execute(f"roslaunch robot_api moveit_macros.launch namespace:={arm.namespace}", 5)
         if not arm.connect("moveit_macros"):
             return None
 
@@ -43,8 +41,9 @@ class Arm(ActionlibComponent):
 
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
-            "moveit_macros": MoveItMacroAction,
-            "ft_observer": FtObserverAction
+            "moveit_macros": (MoveItMacroAction,
+                f"roslaunch robot_api moveit_macros.launch namespace:={namespace}", 5),
+            "ft_observer": (FtObserverAction, )
         }, connect_manipulation_on_init)
 
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:

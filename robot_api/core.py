@@ -73,7 +73,7 @@ class BaseMoveToCoordinatesAction(Action):
 
 class Base(ActionlibComponent):
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
-        super().__init__(namespace, {"move_base": MoveBaseAction}, connect_navigation_on_init)
+        super().__init__(namespace, {"move_base": (MoveBaseAction, )}, connect_navigation_on_init)
         self._tf_listener = tf.TransformListener()
 
     def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",

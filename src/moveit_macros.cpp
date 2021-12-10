@@ -62,7 +62,7 @@
 
 namespace robot
 {
-std::string tf_prefix_ = "robot";
+std::string tf_prefix_ = "mobipick";
 
 struct GrapsPoseDefine
 {
@@ -753,11 +753,11 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "moveit_macros");
 
-  ros::NodeHandle nh_priv("~");
+  ros::NodeHandle nh_priv("/mobipick");
   std::string param_path;
   if (nh_priv.searchParam("tf_prefix", param_path))
     nh_priv.getParam(param_path, tf_prefix_);
-  nh_priv.param<std::string>("tf_prefix", tf_prefix_, "robot");
+  nh_priv.param<std::string>("tf_prefix", tf_prefix_, "mobipick");
 
   // ensure tf_prefix_ ends with exactly 1 '/' if nonempty, or "" if empty
   tf_prefix_ = tf_prefix_.erase(tf_prefix_.find_last_not_of('/') + 1) + "/";

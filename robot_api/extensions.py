@@ -42,7 +42,7 @@ class Arm(ActionlibComponent):
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
             "moveit_macros": (MoveItMacroAction,
-                f"roslaunch robot_api moveit_macros.launch namespace:={namespace}", 5),
+                f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'", 10),
             "ft_observer": (FtObserverAction, )
         }, connect_manipulation_on_init)
 

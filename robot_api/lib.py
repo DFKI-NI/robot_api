@@ -112,19 +112,19 @@ class ActionlibComponent:
     """
     def __init__(self, namespace: str, server_specs: Dict[str, Union[Tuple[genpy.Message],
             Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
-        self.namespace = namespace
+        self._namespace = namespace
         self._server_specs = server_specs
         self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
         if connect_on_init:
             for server_name in server_specs.keys():
-                self.connect(server_name)
+                self._connect(server_name)
 
     def _has_actionlib_result(self, server_name: str) -> bool:
         """Return whether there exists an actionlib result topic for server_name."""
         action_spec = self._server_specs[server_name][0]
-        return _is_topic_of_type(self.namespace, server_name + "/result", action_spec.__name__ + "Result")
+        return _is_topic_of_type(self._namespace, server_name + "/result", action_spec.__name__ + "Result")
 
-    def connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
+    def _connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
         """Connect action client to server_name if not yet successfully done."""
         if not server_name in self._action_clients.keys():
             server_spec = self._server_specs[server_name]
@@ -142,7 +142,7 @@ class ActionlibComponent:
                 rospy.logerr(f"Cannot connect to server '{server_name}' with unknown type.")
                 return False
 
-            action_client = actionlib.SimpleActionClient(self.namespace + server_name, server_spec[0])
+            action_client = actionlib.SimpleActionClient(self._namespace + server_name, server_spec[0])
             if not action_client.wait_for_server(timeout=timeout):
                 rospy.logerr(f"Timeout while trying to connect to server '{server_name}'."
                     f"{' ROS is shutting down.' if rospy.is_shutdown() else ''}")

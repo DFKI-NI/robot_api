@@ -15,7 +15,7 @@ class BaseMoveToGoalAction(Action):
     @staticmethod
     def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        if not base.connect("move_base"):
+        if not base._connect("move_base"):
             return
 
         p, q = goal.target_pose.pose.position, goal.target_pose.pose.orientation
@@ -81,7 +81,7 @@ class Base(ActionlibComponent):
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
             position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                self.namespace + robot_frame, rospy.Time(0))
+                self._namespace + robot_frame, rospy.Time(0))
         except (tf.LookupException, tf.ExtrapolationException) as e:
             # If timeout is given, repeatedly try again.
             if timeout:
@@ -90,7 +90,7 @@ class Base(ActionlibComponent):
                     try:
                         time.sleep(1.0)
                         position, orientation = self._tf_listener.lookupTransform(reference_frame,
-                            self.namespace + robot_frame, rospy.Time(0))
+                            self._namespace + robot_frame, rospy.Time(0))
                         return position, orientation
                     except tf.LookupException:
                         pass

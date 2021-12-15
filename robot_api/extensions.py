@@ -12,7 +12,7 @@ class ArmMoveItMacroAction(Action):
     @staticmethod
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        if not arm.connect("moveit_macros"):
+        if not arm._connect("moveit_macros"):
             return None
 
         goal = MoveItMacroGoal(type=goal_type, name=goal_name)
@@ -25,7 +25,7 @@ class ArmMoveItMacroAction(Action):
 class ArmForceTorqueObserverAction(Action):
     @staticmethod
     def execute(arm: Arm, threshold: float, timeout: float) -> bool:
-        if not arm.connect("ft_observer"):
+        if not arm._connect("ft_observer"):
             return False
 
         goal = FtObserverGoal(threshold=threshold, timeout=timeout)
@@ -37,7 +37,7 @@ class ArmForceTorqueObserverAction(Action):
 
 
 class Arm(ActionlibComponent):
-    ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
+    _ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
 
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
@@ -62,10 +62,10 @@ class Arm(ActionlibComponent):
 
     def get_state_names(self) -> List[str]:
         """Get group state names from semantic robot description parameter used for arm poses."""
-        params = rosparam.list_params(self.namespace)
+        params = rosparam.list_params(self._namespace)
         # If default param name exists, use it.
-        if self.namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
-            param = rosparam.get_param(self.namespace + self.ROBOT_DESCRIPTION_SEMANTIC)
+        if self._namespace + self._ROBOT_DESCRIPTION_SEMANTIC in params:
+            param = rosparam.get_param(self._namespace + self._ROBOT_DESCRIPTION_SEMANTIC)
         else:
             # Otherwise search for param which ends with '_semantic', according to planning_context.launch.
             for param in params:

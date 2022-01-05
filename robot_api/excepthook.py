@@ -5,7 +5,7 @@ import sys
 
 class Excepthook:
     _sys_excepthook = sys.excepthook
-    _expected_exception = None  # type: Optional[BaseException]
+    _expected_exception: Optional[BaseException] = None
 
     @staticmethod
     def _excepthook(exception_type: Type[BaseException], exception_value: BaseException,

@@ -76,7 +76,7 @@ class Arm(ActionlibComponent):
 
         # Collect all names from group states associated with group "arm".
         tokens = re.findall(r'<group_state ([= \"\w]+)>', param)
-        names = []  # type: List[str]
+        names: List[str] = []
         for token in tokens:
             if "group='arm'" in token or 'group="arm"' in token:
                 match_result = re.search(r'name=["\'](\w+)["\']', token)

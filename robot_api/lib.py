@@ -58,7 +58,7 @@ def _execute(command: str, sleep_duration: int=0) -> None:
 
 
 class Storage:
-    waypoints = OrderedDict()  # type: Dict[str, Tuple[Sequence[float], Sequence[float]]]
+    waypoints: Dict[str, Tuple[Sequence[float], Sequence[float]]] = OrderedDict()
     _next_waypoint = 1
 
     @classmethod
@@ -114,7 +114,7 @@ class ActionlibComponent:
             Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
         self._namespace = namespace
         self._server_specs = server_specs
-        self._action_clients = {}  # type: Dict[str, actionlib.SimpleActionClient]
+        self._action_clients: Dict[str, actionlib.SimpleActionClient] = {}
         if connect_on_init:
             for server_name in server_specs.keys():
                 self._connect(server_name)
@@ -161,7 +161,7 @@ def find_robot_namespaces() -> List[str]:
     except ConnectionRefusedError as e:
         raise Excepthook.expect(e)
 
-    robot_namespaces = []  # type: List[str]
+    robot_namespaces: List[str] = []
     for topic, message_type in topics:
         if message_type == "move_base_msgs/MoveBaseActionGoal":
             match_result = re.match(r'\/(\w+)\/move_base\/goal', topic)

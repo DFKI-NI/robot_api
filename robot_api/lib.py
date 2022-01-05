@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import os
 import shlex
 import subprocess
@@ -151,6 +151,16 @@ class ActionlibComponent:
             # Note: server_name is a key in server_specs and thus unique.
             self._action_clients[server_name] = action_client
         return True
+
+    def get_result(self, server_name: Optional[str]=None) -> Any:
+        """
+        Return result from action client connected to server_name.
+        Note: The first action server of the component is used by default.
+        """
+        if server_name is None:
+            assert self._server_specs, f"No server_name specified to get result from."
+            server_name = next(iter(self._server_specs.keys()))
+        return self._action_clients[server_name].get_result()
 
 
 def find_robot_namespaces() -> List[str]:

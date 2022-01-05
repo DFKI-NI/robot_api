@@ -50,11 +50,6 @@ class Arm(ActionlibComponent):
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
         return ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)
 
-    def get_result(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Execute action_name and return its result (not state). Optionally, call done_cb() afterwards if given."""
-        ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)
-        return self._action_clients["moveit_macros"].get_result()
-
     def move(self, goal_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Move arm to pose named goal_name. Optionally, call done_cb() afterwards if given."""
         rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")

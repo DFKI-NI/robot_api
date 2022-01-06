@@ -23,7 +23,7 @@ def _s(count: int, name: str, plural: str='s') -> str:
 def _init_node() -> None:
     """Initialize ROS node for the current process if not already done."""
     if not rosgraph.is_master_online():
-        rospy.logdebug("Waiting for ROS master node to go online ...")
+        print("Waiting for ROS master node to go online ...")
         while not rosgraph.is_master_online():
             time.sleep(1.0)
     if rospy.is_shutdown():
@@ -212,6 +212,7 @@ def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
     try:
         with open(filepath, 'r') as text_file:
             lines = [line.strip() for line in text_file.readlines() if line.strip()]
+        # Parse and store line by line to preserve the order within the dict read.
         for line in lines:
             elements = yaml.safe_load(line)
             assert isinstance(elements, dict), f"Invalid format in line: {line}"

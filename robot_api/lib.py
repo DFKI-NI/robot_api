@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 import time
+import math
 import re
 import rospy
 import rosnode
@@ -128,7 +129,6 @@ class ActionlibComponent:
         """Connect action client to server_name if not yet successfully done."""
         if not server_name in self._action_clients.keys():
             server_spec = self._server_specs[server_name]
-            # action_spec = self._server_specs[server_name][0]
             has_actionlib_result = self._has_actionlib_result(server_name)
             if not has_actionlib_result:
                 if len(server_spec) == 3:
@@ -178,6 +178,16 @@ def find_robot_namespaces() -> List[str]:
             if match_result:
                 robot_namespaces.append(match_result.group(1))
     return robot_namespaces
+
+
+def get_angle_between(source: float, target: float) -> float:
+    """Return angle from source to target in [-pi, pi)."""
+    angle = target - source
+    while angle < -math.pi:
+        angle += 2 * math.pi
+    while angle >= math.pi:
+        angle -= 2 * math.pi
+    return angle
 
 
 def add_waypoint(name: str, position: Sequence[float], orientation: Sequence[float]) -> None:

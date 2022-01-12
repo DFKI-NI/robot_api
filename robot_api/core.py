@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 import time
+import math
 import rospy
 import tf
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import _init_node, Action, ActionlibComponent, Storage
+from robot_api.lib import _init_node, Action, ActionlibComponent, Storage, get_angle_between
 
 
 class BaseMoveToGoalAction(Action):
@@ -72,6 +73,10 @@ class BaseMoveToCoordinatesAction(Action):
 
 
 class Base(ActionlibComponent):
+    # Note: Cannot use move_base goal tolerances because movement by move_base does not guarantee its thresholds.
+    _XY_TOLERANCE = 0.2
+    _YAW_TOLERANCE = 0.1
+
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
         super().__init__(namespace, {"move_base": (MoveBaseAction, )}, connect_navigation_on_init)
         self._tf_listener = tf.TransformListener()
@@ -104,6 +109,22 @@ class Base(ActionlibComponent):
         position, orientation = self.get_pose(reference_frame, robot_frame, timeout)
         _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
         return position[0], position[1], yaw
+
+    def get_pose_name(self, poses: Dict[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
+            xy_tolerance=_XY_TOLERANCE, yaw_tolerance=_YAW_TOLERANCE, timeout: float=1.0) -> Optional[str]:
+        """Return the pose name if the robot base is currently at one of the given poses."""
+        if not poses:
+            rospy.logwarn("No poses given to compare to.")
+            return None
+
+        position, orientation = self.get_pose(timeout=timeout)
+        _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
+        for pose_name, (check_position, check_orientation) in poses.items():
+            _, _, check_yaw = tf.transformations.euler_from_quaternion(check_orientation)
+            if math.dist(position, check_position) <= xy_tolerance \
+                    and abs(get_angle_between(yaw, check_yaw)) <= yaw_tolerance:
+                return pose_name
+        return None
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:

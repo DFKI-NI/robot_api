@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import os
 import shlex
@@ -13,6 +14,7 @@ import genpy
 import actionlib
 import yaml
 from collections import OrderedDict
+from geometry_msgs.msg import Point, Pose, Quaternion
 from robot_api.excepthook import Excepthook
 
 
@@ -58,27 +60,55 @@ def _execute(command: str, sleep_duration: int=0) -> None:
         time.sleep(sleep_duration)
 
 
+class TuplePose:
+    """Helper class for handling geometry_msgs/Pose."""
+    @staticmethod
+    def from_pose(pose: Pose) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+        p, q = pose.position, pose.orientation
+        return ((p.x, p.y, p.z), (q.x, q.y, q.z, q.w))
+
+    @staticmethod
+    def from_sequence_tuple(pose: Tuple[Sequence[float], Sequence[float]]) \
+            -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+        position, orientation = pose
+        assert len(position) == 3, "First parameter must be a vector of len 3."
+        assert len(orientation) == 4, "Second parameter must be a quaternion of len 4."
+        return ((position[0], position[1], position[2]),
+            (orientation[0], orientation[1], orientation[2], orientation[3]))
+
+    @staticmethod
+    def to_pose(pose: Tuple[Sequence[float], Sequence[float]]) -> Pose:
+        return Pose(Point(*pose[0]), Quaternion(*pose[1]))
+
+    @staticmethod
+    def to_str(pose: Tuple[Sequence[float], Sequence[float]]) -> str:
+        # Note: Use list representations to easily parse with yaml afterwards.
+        return f"[{list(pose[0])}, {list(pose[1])}]"
+
+
 class Storage:
-    waypoints: Dict[str, Tuple[Sequence[float], Sequence[float]]] = OrderedDict()
+    waypoints: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]] = OrderedDict()
     _next_waypoint = 1
 
     @classmethod
-    def _add_generic_waypoint(cls, position: Sequence[float], orientation: Sequence[float]) -> None:
-        """Add (position, orientation) with generic name to list of stored waypoints."""
+    def _add_generic_waypoint(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
+        """Add pose with a generic name to dict of stored waypoints."""
         while "waypoint" + str(cls._next_waypoint) in cls.waypoints.keys():
             cls._next_waypoint += 1
-        cls.waypoints["waypoint" + str(cls._next_waypoint)] = (position, orientation)
+        cls.waypoints["waypoint" + str(cls._next_waypoint)] = TuplePose.from_sequence_tuple(pose)
 
     @classmethod
     def _waypoints_to_str(cls) -> str:
         """Convert OrderedDict representation of waypoints to str."""
-        return '\n'.join(f"'{waypoint_name}': {waypoint}" for waypoint_name, waypoint in cls.waypoints.items())
+        return '\n'.join(f"'{waypoint_name}': {TuplePose.to_str(waypoint)}"
+            for waypoint_name, waypoint in cls.waypoints.items())
 
     @classmethod
-    def _get_custom_waypoint_name(cls, position: Sequence[float], orientation: Sequence[float]) -> str:
+    def _get_custom_waypoint_name(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> str:
         """Return custom name of waypoint (position, orientation) if it exists."""
+        tuple_pose = TuplePose.from_sequence_tuple(pose)
         for name, waypoint in cls.waypoints.items():
-            if not name.startswith("waypoint") and waypoint == (position, orientation):
+            if re.match(r'waypoint\d+', name) is None and waypoint == tuple_pose:
                 return name
         return ""
 
@@ -190,12 +220,12 @@ def get_angle_between(source: float, target: float) -> float:
     return angle
 
 
-def add_waypoint(name: str, position: Sequence[float], orientation: Sequence[float]) -> None:
-    """Add waypoint with name, position [x, y, z] and orientation [x, y, z, w]."""
+def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
+    """Store waypoint with name and pose ((x, y, z), (qx, qy, qz, qw))."""
     _init_node()
     if name in Storage.waypoints.keys():
         rospy.logwarn(f"Overwriting waypoint: {Storage.waypoints[name]}")
-    Storage.waypoints[name] = (position, orientation)
+    Storage.waypoints[name] = TuplePose.from_sequence_tuple(pose)
 
 
 def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
@@ -210,7 +240,7 @@ def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         with open(filepath, 'w') as text_file:
             for waypoint_name, waypoint in Storage.waypoints.items():
                 # Note: Write tuple as list for nicer format.
-                text_file.write(f"'{waypoint_name}': {list(waypoint)}\n")
+                text_file.write(f"'{waypoint_name}': {TuplePose.to_str(waypoint)}\n")
     except Exception:
         rospy.logerr(f"Error while writing to file '{filepath}'!")
 
@@ -226,8 +256,8 @@ def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         for line in lines:
             elements = yaml.safe_load(line)
             assert isinstance(elements, dict), f"Invalid format in line: {line}"
-            for name, (position, orientation) in elements.items():
-                add_waypoint(name, position, orientation)
+            for name, pose in elements.items():
+                add_waypoint(name, pose)
         rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(Storage.waypoints)} in total.")
     except Exception:
         rospy.logerr(f"Error while reading from file '{filepath}'!")

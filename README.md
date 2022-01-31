@@ -44,7 +44,7 @@ The idea is not new at all. See for example Facebook's [PyRobot](https://pyrobot
 
 When defining an interface, you might as well make it elaborate, even when it's Python. You will notice the difference when using an IDE with code completion or static type checking. `*args` and `**kwargs` are universal parameters but might require more of trail and error from the user than necessary.
 
-### ROS independence
+### ROS wrapper
 
 At least on user side, you don't need to worry about importing `rospy` or initializing a ROS node to use the `robot_api`. Beneath it, ROS is used indeed since a running ROS environment is a prerequisite in the first place. In the future, ROS 2 shall be supported as well. Under these circumstances, it makes sense for `robot_api` to accept ROS message types as parameters anyway. A detailed example is `Base.move()`, which accepts several variations of ROS and non-ROS parameters.
 

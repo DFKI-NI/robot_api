@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union
 import time
 import math
 import rospy
@@ -45,6 +45,13 @@ class BaseMoveToPoseAction(Action):
         return BaseMoveToGoalAction.execute(base, goal, timeout, done_cb)
 
 
+class BaseMoveToTuplePoseAction(Action):
+    @staticmethod
+    def execute(base: Base, pose: Tuple[Sequence[float], Sequence[float]], frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        return BaseMoveToPoseAction.execute(base, TuplePose.to_pose(pose), frame_id, timeout, done_cb)
+
+
 class BaseMoveToPositionOrientationAction(Action):
     @staticmethod
     def execute(base: Base, position: Sequence[float], orientation: Sequence[float], frame_id: str="map",
@@ -64,8 +71,8 @@ class BaseMoveToCoordinatesAction(Action):
 
 class Base(ActionlibComponent):
     # Note: Cannot use move_base goal tolerances because movement by move_base does not guarantee its thresholds.
-    _XY_TOLERANCE = 0.2
-    _YAW_TOLERANCE = 0.1
+    XY_TOLERANCE = 0.2
+    YAW_TOLERANCE = 0.1
 
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
         super().__init__(namespace, {"move_base": (MoveBaseAction, )}, connect_navigation_on_init)
@@ -101,7 +108,7 @@ class Base(ActionlibComponent):
         return position[0], position[1], yaw
 
     def get_pose_name(self, poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
-            xy_tolerance=_XY_TOLERANCE, yaw_tolerance=_YAW_TOLERANCE, timeout: float=1.0) -> Optional[str]:
+            xy_tolerance=XY_TOLERANCE, yaw_tolerance=YAW_TOLERANCE, timeout: float=1.0) -> Optional[str]:
         """Return the pose name if the robot base is currently at one of the given poses."""
         if not poses:
             rospy.logwarn("No poses given to compare to.")
@@ -132,14 +139,14 @@ class Base(ActionlibComponent):
         return BaseMoveToPoseAction.execute(self, TuplePose.to_pose(Storage.waypoints[name]),
             frame_id, timeout, done_cb)
 
-    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None,
-            pitch: float=0.0, roll: float=0.0, z: float=0.0, position: Sequence[float]=[],
-            orientation: Sequence[float]=[], pose: Optional[Pose]=None, goal: Optional[MoveBaseGoal]=None,
-            frame_id: str="map", timeout: float=60.0,
+    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None, pitch: float=0.0,
+            roll: float=0.0, z: float=0.0, position: Sequence[float]=[], orientation: Sequence[float]=[],
+            pose: Optional[Union[Pose, Tuple[Sequence[float], Sequence[float]]]]=None,
+            goal: Optional[MoveBaseGoal]=None, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to goal pose using the following parameter options in descending priority:
         move(goal: move_base_msgs.msg.MoveBaseGoal)
-        move(pose: geometry_msgs.msg.Pose)
+        move(pose: geometry_msgs.msg.Pose | Tuple[Sequence[float], Sequence[float]])
         move(position: Sequence[float], orientation: Sequence[float])
         move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
 
@@ -160,7 +167,8 @@ class Base(ActionlibComponent):
                             " must be specified."))
                 return BaseMoveToPositionOrientationAction.execute(self, position, orientation, frame_id, timeout,
                     done_cb)
-            return BaseMoveToPoseAction.execute(self, pose, frame_id, timeout, done_cb)
+            return BaseMoveToPoseAction.execute(self, pose, frame_id, timeout, done_cb) if isinstance(pose, Pose) \
+                else BaseMoveToTuplePoseAction.execute(self, pose, frame_id, timeout, done_cb)
         return BaseMoveToGoalAction.execute(self, goal, timeout, done_cb)
 
 

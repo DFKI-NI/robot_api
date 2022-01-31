@@ -38,15 +38,15 @@ class ArmForceTorqueObserverAction(Action):
 
 
 class Arm(ActionlibComponent):
-    _ROSLAUNCH_SLEEP_DURATION = 10
-    _ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
-    _ANGLE_TOLERANCE = 0.01
+    ROSLAUNCH_SLEEP_DURATION = 10
+    ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
+    ANGLE_TOLERANCE = 0.01
 
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
             "moveit_macros": (MoveItMacroAction,
                 f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
-                self._ROSLAUNCH_SLEEP_DURATION),
+                self.ROSLAUNCH_SLEEP_DURATION),
             "ft_observer": (FtObserverAction, )
         }, connect_manipulation_on_init)
         self._pose_joint_values = self._get_pose_joint_values()
@@ -63,8 +63,8 @@ class Arm(ActionlibComponent):
         """Get joint values from semantic robot description parameter used for arm poses."""
         params = rosparam.list_params(self._namespace)
         # If default param name exists, use it.
-        if self._namespace + self._ROBOT_DESCRIPTION_SEMANTIC in params:
-            param = rosparam.get_param(self._namespace + self._ROBOT_DESCRIPTION_SEMANTIC)
+        if self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
+            param = rosparam.get_param(self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC)
         else:
             # Otherwise search for param which ends with '_semantic', according to planning_context.launch.
             for param in params:
@@ -93,7 +93,7 @@ class Arm(ActionlibComponent):
         rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")
         return ArmMoveItMacroAction.execute(self, "target", goal_name, done_cb)
 
-    def get_pose_name(self, angle_tolerance=_ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
+    def get_pose_name(self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""
         joint_state: JointState = rospy.wait_for_message(self._namespace + "joint_states", JointState, timeout)
         for pose_name, joints in self._pose_joint_values.items():

@@ -1,0 +1,12 @@
+#goal
+SetTask[] modification
+---
+#result
+# Error code - encodes the overall reason for failure
+moveit_msgs/MoveItErrorCodes error_code
+---
+#feedback
+string stage
+bool planning
+bool executing
+float64 time_remaining

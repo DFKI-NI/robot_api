@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface
   roscpp
   roslaunch
+  sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -50,12 +51,12 @@ catkin_python_setup()
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+# Generate messages in the 'msg' folder
+ add_message_files(
+   FILES
+   SetTask.msg
+   TaskParameter.msg
+ )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -69,6 +70,7 @@ add_action_files(
   FILES
   FtObserver.action
   MoveItMacro.action
+  SetTask.action
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -76,6 +78,8 @@ generate_messages(
   DEPENDENCIES
   actionlib_msgs
   geometry_msgs
+  sensor_msgs
+  moveit_msgs
 )
 
 ################################################
@@ -115,6 +119,7 @@ catkin_package(
     geometry_msgs
     moveit_msgs
     moveit_ros_planning_interface
+    sensor_msgs
 #  DEPENDS system_lib
 )
 

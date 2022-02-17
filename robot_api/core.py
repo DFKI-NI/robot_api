@@ -110,19 +110,27 @@ class Base(ActionlibComponent):
 
     def get_pose_name(self, poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
             xy_tolerance=XY_TOLERANCE, yaw_tolerance=YAW_TOLERANCE, timeout: float=1.0) -> Optional[str]:
-        """Return the pose name if the robot base is currently at one of the given poses."""
+        """Return the name of the pose in poses closest to the robot base within the given tolerances."""
         if not poses:
             rospy.logwarn("No poses given to compare to.")
             return None
 
         position, orientation = self.get_pose(timeout=timeout)
         _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
-        for pose_name, (check_position, check_orientation) in poses.items():
+        pose_name: Optional[str] = None
+        min_yaw_distance = math.pi
+        for check_name, (check_position, check_orientation) in poses.items():
             _, _, check_yaw = tf.transformations.euler_from_quaternion(check_orientation)
-            if math.dist(position, check_position) <= xy_tolerance \
-                    and abs(get_angle_between(yaw, check_yaw)) <= yaw_tolerance:
-                return pose_name
-        return None
+            xy_distance = math.dist(position, check_position)
+            yaw_distance = abs(get_angle_between(yaw, check_yaw))
+            # Continue choosing closer positions, or in case of equal xy_distance closer orientations.
+            if xy_distance <= xy_tolerance and yaw_distance <= yaw_tolerance \
+                    and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance):
+                pose_name = check_name
+                xy_tolerance = xy_distance
+                # Note: A closer position has precedence and will be chosen regardless of orientation.
+                min_yaw_distance = yaw_distance
+        return pose_name
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:

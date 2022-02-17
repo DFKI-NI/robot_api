@@ -144,8 +144,10 @@ class ActionlibComponent:
     def __init__(self, namespace: str, server_specs: Dict[str, Union[Tuple[genpy.Message],
             Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
         self._namespace = namespace
+        assert server_specs, "Error: You must init an ActionlibComponent with an item in server_specs."
         self._server_specs = server_specs
         self._action_clients: Dict[str, actionlib.SimpleActionClient] = {}
+        self._last_server_name: Optional[str] = None
         if connect_on_init:
             for server_name in server_specs.keys():
                 self._connect(server_name)
@@ -157,6 +159,7 @@ class ActionlibComponent:
 
     def _connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
         """Connect action client to server_name if not yet successfully done."""
+        self._last_server_name = server_name
         if not server_name in self._action_clients.keys():
             server_spec = self._server_specs[server_name]
             has_actionlib_result = self._has_actionlib_result(server_name)
@@ -183,13 +186,16 @@ class ActionlibComponent:
         return True
 
     def get_result(self, server_name: Optional[str]=None) -> Any:
-        """
-        Return result from action client connected to server_name.
-        Note: The first action server of the component is used by default.
-        """
+        """Return result from action client connected to server_name. Use the last connected server_name by default."""
         if server_name is None:
-            assert self._server_specs, f"No server_name specified to get result from."
-            server_name = next(iter(self._server_specs.keys()))
+            server_name = self._last_server_name
+            if server_name is None:
+                rospy.logerr("Cannot get result before connecting to any server.")
+                return None
+        if server_name not in self._action_clients.keys():
+            rospy.logerr(f"Cannot get result from server '{server_name}'.")
+            return None
+
         return self._action_clients[server_name].get_result()
 
 

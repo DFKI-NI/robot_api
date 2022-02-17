@@ -5,8 +5,19 @@ import re
 import rospy
 import rosparam
 from sensor_msgs.msg import JointState
-from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal
+from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal, SetTaskAction, SetTaskActionGoal, SetTask, TaskParameter
 from robot_api.lib import Action, ActionlibComponent, get_angle_between
+
+
+class ArmTaskServerAction(Action):
+    @staticmethod
+    def execute(arm: Arm, goal_stage: int, goal_identifier: str, goal_data: str) -> Any:
+        if not arm._connect("task_server/set_task"):
+            return None
+        goal_parameter = TaskParameter(identifier = goal_identifier, data = goal_data)
+        goal_modification = SetTask(stage = goal_stage, task_parameter = [goal_parameter])
+        goal = SetTaskActionGoal(modification=goal_modification)
+        return arm._action_clients["task_server/set_task"].send_goal(goal)
 
 
 class ArmMoveItMacroAction(Action):
@@ -47,7 +58,8 @@ class Arm(ActionlibComponent):
             "moveit_macros": (MoveItMacroAction,
                 f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
                 self.ROSLAUNCH_SLEEP_DURATION),
-            "ft_observer": (FtObserverAction, )
+            "ft_observer": (FtObserverAction, ),
+            "task_server/set_task": (SetTaskAction)
         }, connect_manipulation_on_init)
         self._pose_joint_values = self._get_pose_joint_values()
         self.pose_names = list(self._pose_joint_values.keys())

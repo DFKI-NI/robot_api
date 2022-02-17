@@ -16,7 +16,7 @@ class BaseMoveToGoalAction(Action):
     @staticmethod
     def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        if not base._connect("move_base"):
+        if not base._connect(Base.MOVE_BASE_TOPIC_NAME):
             return
 
         pose = TuplePose.from_pose(goal.target_pose.pose)
@@ -29,9 +29,9 @@ class BaseMoveToGoalAction(Action):
             Storage._add_generic_waypoint(pose)
         if done_cb is None:
             rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
-            return base._action_clients["move_base"].send_goal_and_wait(goal, rospy.Duration(timeout))
+            return base._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal_and_wait(goal, rospy.Duration(timeout))
         else:
-            return base._action_clients["move_base"].send_goal(goal, done_cb)
+            return base._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal(goal, done_cb)
 
 
 class BaseMoveToPoseAction(Action):
@@ -70,12 +70,13 @@ class BaseMoveToCoordinatesAction(Action):
 
 
 class Base(ActionlibComponent):
+    MOVE_BASE_TOPIC_NAME = "move_base"
     # Note: Cannot use move_base goal tolerances because movement by move_base does not guarantee its thresholds.
     XY_TOLERANCE = 0.2
     YAW_TOLERANCE = 0.1
 
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
-        super().__init__(namespace, {"move_base": (MoveBaseAction, )}, connect_navigation_on_init)
+        super().__init__(namespace, {self.MOVE_BASE_TOPIC_NAME: (MoveBaseAction,)}, connect_navigation_on_init)
         self._tf_listener = tf.TransformListener()
 
     def get_pose(self, reference_frame: str="map", robot_frame: str="base_footprint",

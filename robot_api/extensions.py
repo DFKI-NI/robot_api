@@ -5,43 +5,45 @@ import re
 import rospy
 import rosparam
 from sensor_msgs.msg import JointState
-from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal, SetTaskAction, SetTaskActionGoal, SetTask, TaskParameter
+from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal, \
+    SetTask, SetTaskAction, SetTaskGoal, SetTaskResult, TaskParameter
 from robot_api.lib import Action, ActionlibComponent, get_angle_between
 
 
 class ArmTaskServerAction(Action):
     @staticmethod
-    def execute(arm: Arm, goal_stage: int, goal_identifier: str, goal_data: str) -> Any:
-        if not arm._connect("task_server/set_task"):
+    def execute(arm: Arm, task_stage: int, parameter_identifier: str, parameter_data: str,
+            done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
+        if not arm._connect(Arm.TASK_SERVER_TOPIC_NAME):
             return None
-        goal_parameter = TaskParameter(identifier = goal_identifier, data = goal_data)
-        goal_modification = SetTask(stage = goal_stage, task_parameter = [goal_parameter])
-        goal = SetTaskActionGoal(modification=goal_modification)
-        return arm._action_clients["task_server/set_task"].send_goal(goal)
+
+        task_parameter = TaskParameter(identifier=parameter_identifier, data=parameter_data)
+        sub_task = SetTask(stage=task_stage, task_parameters=[task_parameter])
+        goal = SetTaskGoal(modification=[sub_task])
+        return arm._action_clients[Arm.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
+            else arm._action_clients[Arm.TASK_SERVER_TOPIC_NAME].send_goal(goal, done_cb)
 
 
 class ArmMoveItMacroAction(Action):
     @staticmethod
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        if not arm._connect("moveit_macros"):
+        if not arm._connect(Arm.MOVEIT_MACROS_TOPIC_NAME):
             return None
 
         goal = MoveItMacroGoal(type=goal_type, name=goal_name)
-        if done_cb is None:
-            return arm._action_clients["moveit_macros"].send_goal_and_wait(goal)
-        else:
-            return arm._action_clients["moveit_macros"].send_goal(goal, done_cb)
+        return arm._action_clients[Arm.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
+            else arm._action_clients[Arm.MOVEIT_MACROS_TOPIC_NAME].send_goal(goal, done_cb)
 
 
 class ArmForceTorqueObserverAction(Action):
     @staticmethod
     def execute(arm: Arm, threshold: float, timeout: float) -> bool:
-        if not arm._connect("ft_observer"):
+        if not arm._connect(Arm.FT_OBSERVER_TOPIC_NAME):
             return False
 
         goal = FtObserverGoal(threshold=threshold, timeout=timeout)
-        action_client = arm._action_clients["ft_observer"]
+        action_client = arm._action_clients[Arm.FT_OBSERVER_TOPIC_NAME]
         action_client.send_goal(goal)
         action_client.wait_for_result()
         # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -51,15 +53,18 @@ class ArmForceTorqueObserverAction(Action):
 class Arm(ActionlibComponent):
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
+    TASK_SERVER_TOPIC_NAME = "task_server/set_task"
+    MOVEIT_MACROS_TOPIC_NAME = "moveit_macros"
+    FT_OBSERVER_TOPIC_NAME = "ft_observer"
     ANGLE_TOLERANCE = 0.01
 
     def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
         super().__init__(namespace, {
-            "moveit_macros": (MoveItMacroAction,
+            self.TASK_SERVER_TOPIC_NAME: (SetTaskAction,),
+            self.MOVEIT_MACROS_TOPIC_NAME: (MoveItMacroAction,
                 f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
                 self.ROSLAUNCH_SLEEP_DURATION),
-            "ft_observer": (FtObserverAction, ),
-            "task_server/set_task": (SetTaskAction)
+            self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,)
         }, connect_manipulation_on_init)
         self._pose_joint_values = self._get_pose_joint_values()
         self.pose_names = list(self._pose_joint_values.keys())
@@ -100,10 +105,9 @@ class Arm(ActionlibComponent):
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
         return ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)
 
-    def move(self, goal_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Move arm to pose named goal_name. Optionally, call done_cb() afterwards if given."""
-        rospy.logdebug(f"Sending moveit_macro goal '{goal_name}' ...")
-        return ArmMoveItMacroAction.execute(self, "target", goal_name, done_cb)
+    def move(self, pose_name: str, done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
+        """Move arm to pose named pose_name. Optionally, call done_cb() afterwards if given."""
+        return ArmTaskServerAction.execute(self, 10, "pose_name", pose_name, done_cb)
 
     def get_pose_name(self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""

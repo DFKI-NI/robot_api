@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from enum import IntEnum
 import re
 import rospy
 import rosparam
@@ -48,6 +49,21 @@ class ArmForceTorqueObserverAction(Action):
         action_client.wait_for_result()
         # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
         return int(action_client.get_state()) == 3
+
+
+class TaskStage(IntEnum):
+    # Note: This must match SetTask.msg.
+    MOVE_TO_NAMED_POSE = 10
+    MOVE_TO_POSE = 11
+    MOVE_RELATIVE = 12
+    MOVE_TO_JOINT_POSE = 13
+    MOVE_GRIPPER_TO_NAMED_POSE = 20
+    MOVE_GRIPPER_TO_POSE = 21
+    MOVE_GRIPPER_RELATIVE = 22
+    GRASP_CONTAINER = 30
+    PLACE_CONTAINER = 40
+    CONNECT_STATE = 100
+    ADD_PREDICATE_STATE = 101
 
 
 class Arm(ActionlibComponent):
@@ -107,7 +123,7 @@ class Arm(ActionlibComponent):
 
     def move(self, pose_name: str, done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
         """Move arm to pose named pose_name. Optionally, call done_cb() afterwards if given."""
-        return ArmTaskServerAction.execute(self, 10, "pose_name", pose_name, done_cb)
+        return ArmTaskServerAction.execute(self, TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb)
 
     def get_pose_name(self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""

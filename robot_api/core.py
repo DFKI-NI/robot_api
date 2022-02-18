@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type, Union, overload
 import time
 import math
 import rospy
@@ -10,6 +10,21 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
 from robot_api.lib import Action, ActionlibComponent, Storage, TuplePose, get_angle_between, _init_node
+
+
+def _isinstance(obj: object, type_or_types: Union[Type, Tuple[Type, ...]]) -> bool:
+    """Return whether obj's and its potential elements' types match type_or_types."""
+    if isinstance(type_or_types, tuple):
+        return _isinstance(obj, type_or_types[0]) and (len(type_or_types) <= 1 \
+            or isinstance(obj, Sequence) and all(_isinstance(element, type_or_types[1:]) for element in obj))
+
+    return isinstance(obj, type_or_types)
+
+
+def _get_at(args: Any, index: int, type_or_types: Union[Type, Tuple[Type, ...]]) -> Any:
+    """Return element in args at index if its type matches type_or_types, else None."""
+    return args[index] if isinstance(args, Sequence) and len(args) > index \
+        and _isinstance(args[index], type_or_types) else None
 
 
 class BaseMoveToGoalAction(Action):
@@ -62,7 +77,7 @@ class BaseMoveToPositionOrientationAction(Action):
 
 class BaseMoveToCoordinatesAction(Action):
     @staticmethod
-    def execute(base: Base, x: float, y: float, yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0,
+    def execute(base: Base, x: float, y: float, z: float, roll: float, pitch: float, yaw: float,
             frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         return BaseMoveToPoseAction.execute(base, TuplePose.to_pose(((x, y, z),
@@ -148,19 +163,49 @@ class Base(ActionlibComponent):
         return BaseMoveToPoseAction.execute(self, TuplePose.to_pose(Storage.waypoints[name]),
             frame_id, timeout, done_cb)
 
-    def move(self, x: Optional[float]=None, y: Optional[float]=None, yaw: Optional[float]=None, pitch: float=0.0,
-            roll: float=0.0, z: float=0.0, position: Sequence[float]=[], orientation: Sequence[float]=[],
-            pose: Optional[Union[Pose, Tuple[Sequence[float], Sequence[float]]]]=None,
-            goal: Optional[MoveBaseGoal]=None, frame_id: str="map", timeout: float=60.0,
+    @overload
+    def move(self, goal: MoveBaseGoal, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to goal pose using the following parameter options in descending priority:
-        move(goal: move_base_msgs.msg.MoveBaseGoal)
-        move(pose: geometry_msgs.msg.Pose | Tuple[Sequence[float], Sequence[float]])
-        move(position: Sequence[float], orientation: Sequence[float])
-        move(x: float, y: float: yaw: float, pitch: float=0.0, roll: float=0.0, z: float=0.0)
+        """Move robot to goal. Optionally, call done_cb() afterwards if given."""
+        ...
 
-        Optionally, call done_cb() afterwards if given.
-        """
+    @overload
+    def move(self, pose: Union[Pose, Tuple[Sequence[float], Sequence[float]]], frame_id: str="map",
+            timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to pose. Optionally, call done_cb() afterwards if given."""
+        ...
+
+    @overload
+    def move(self, position: Sequence[float], orientation: Sequence[float], frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to position and orientation. Optionally, call done_cb() afterwards if given."""
+        ...
+
+    @overload
+    def move(self, x: float, y: float, yaw: float, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to pose given by x, y, and yaw in radians. Optionally, call done_cb() afterwards if given."""
+        ...
+
+    @overload
+    def move(self, x: float, y: float, z: float, roll: float, pitch: float, yaw: float, frame_id: str="map",
+            timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to given 6D pose. Optionally, call done_cb() afterwards if given."""
+        ...
+
+    def move(self, *args: Any, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None, **kwargs: Any) -> Any:
+        goal: Optional[MoveBaseGoal] = kwargs.get("goal", _get_at(args, 0, MoveBaseGoal))
+        pose: Optional[Union[Pose, Tuple[Sequence[float], Sequence[float]]]] = kwargs.get("pose",
+            _get_at(args, 0, Pose) or _get_at(args, 0, (tuple, Sequence, float)))
+        position: Optional[Sequence[float]] = kwargs.get("position", _get_at(args, 0, (Sequence, float)))
+        orientation: Optional[Sequence[float]] = kwargs.get("orientation", _get_at(args, 1, (Sequence, float)))
+        x: float = kwargs.get("x", _get_at(args, 0, float))
+        y: float = kwargs.get("y", _get_at(args, 1, float))
+        z: float = kwargs.get("z", _get_at(args, 2, float) if len(args) > 3 else 0.0)
+        roll: float = kwargs.get("roll", _get_at(args, 3, float) if len(args) >= 4 else 0.0)
+        pitch: float = kwargs.get("pitch", _get_at(args, 4, float) if len(args) >= 5 else 0.0)
+        yaw: float = kwargs.get("yaw", _get_at(args, 5 if len(args) >= 6 else 2, float))
         if goal is None:
             if pose is None:
                 if not position or not orientation:
@@ -168,7 +213,7 @@ class Base(ActionlibComponent):
                         if x is None or y is None or yaw is None:
                             raise Excepthook.expect(ValueError("1. Goal, 2. pose, 3. position and orientation,"
                                 " or 4. x, y, and yaw must be specified."))
-                        return BaseMoveToCoordinatesAction.execute(self, x, y, yaw, pitch, roll, z, frame_id, timeout,
+                        return BaseMoveToCoordinatesAction.execute(self, x, y, z, roll, pitch, yaw, frame_id, timeout,
                             done_cb)
                     else:
                         # Raise error if only one of position and orientation is specified.

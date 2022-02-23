@@ -14,13 +14,14 @@ Clone this repository into your catkin workspace and `catkin build` as usual. So
 
 ## Demo
 
-Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick) repository installed and compiled, first start up a ROS environment, e.g.:
+Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick) and [mobipick_task_server](https://git.ni.dfki.de/mobipick/mobipick_task_server) repositories installed and compiled, first start up a ROS environment, e.g.:
 ```
 roslaunch mobipick_gazebo mobipick_moelk.launch
 rosservice call /gazebo/unpause_physics   # or click the "start" button in the Gazebo GUI
 roslaunch mir_gazebo fake_localization.launch __ns:="mobipick" odom_frame_id:="mobipick/odom" base_frame_id:="mobipick/base_footprint"
 roslaunch mir_navigation start_planner.launch map_file:=$(rospack find pbr_maps)/maps/moelk/pbr_robot_lab.yaml prefix:="mobipick/"
 roslaunch mobipick_moveit_config moveit_planning_execution.launch use_pointcloud:=true simulation:=true
+roslaunch mobipick_task_server mobipick_task_server.launch
 ```
 
 To use this `robot_api`, just install it as described above and use a `python` console anywhere:

@@ -32,6 +32,7 @@ class BaseMoveToGoalAction(Action):
     def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         if not base._connect(Base.MOVE_BASE_TOPIC_NAME):
+            rospy.logerr("Did you launch the move_base node?")
             return
 
         pose = TuplePose.from_pose(goal.target_pose.pose)

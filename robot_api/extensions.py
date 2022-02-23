@@ -16,6 +16,7 @@ class ArmTaskServerAction(Action):
     def execute(arm: Arm, task_stage: int, parameter_identifier: str, parameter_data: str,
             done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
         if not arm._connect(Arm.TASK_SERVER_TOPIC_NAME):
+            rospy.logerr("Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?")
             return None
 
         task_parameter = TaskParameter(identifier=parameter_identifier, data=parameter_data)
@@ -30,6 +31,7 @@ class ArmMoveItMacroAction(Action):
     def execute(arm: Arm, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         if not arm._connect(Arm.MOVEIT_MACROS_TOPIC_NAME):
+            rospy.logerr("Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?")
             return None
 
         goal = MoveItMacroGoal(type=goal_type, name=goal_name)
@@ -41,6 +43,7 @@ class ArmForceTorqueObserverAction(Action):
     @staticmethod
     def execute(arm: Arm, threshold: float, timeout: float) -> bool:
         if not arm._connect(Arm.FT_OBSERVER_TOPIC_NAME):
+            rospy.logerr("Did you launch the ft_observer node?")
             return False
 
         goal = FtObserverGoal(threshold=threshold, timeout=timeout)

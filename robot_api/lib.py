@@ -113,29 +113,6 @@ class Storage:
         return ""
 
 
-class Action:
-    """
-    Generic Action interface.
-
-    Subclass Action to implement a concrete action with a typed parameter interface you specify for its execute()
-    method. The first parameter should always be the object which performs the action.
-
-    Instantiate your subclass if you want a specific action instance with parameter values being set. By creating
-    this instance with the same parameter interface as you define for the execute() method, you can execute this
-    action simply by calling it, e.g., action().
-    """
-    def __init__(self, obj: Any, *args: Any, **kwargs: Any) -> None:
-        self.obj = obj
-        self.args = args
-        self.kwargs = kwargs
-
-    def __call__(self) -> bool:
-        if hasattr(self, "execute"):
-            return self.__getattribute__("execute")(self.obj, *self.args, **self.kwargs)
-
-        raise Excepthook.expect(NotImplementedError("You must subclass Action and implement its execute() method!"))
-
-
 class ActionlibComponent:
     """
     Robot component, which automatically connects to ROS actionlib servers given in server_specs.

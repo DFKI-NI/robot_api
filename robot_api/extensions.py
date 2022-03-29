@@ -8,50 +8,7 @@ import rosparam
 from sensor_msgs.msg import JointState
 from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal, \
     SetTask, SetTaskAction, SetTaskGoal, SetTaskResult, TaskParameter
-from robot_api.lib import Action, ActionlibComponent, get_angle_between
-
-
-class ArmTaskServerAction(Action):
-    @staticmethod
-    def execute(arm: Arm, task_stage: int, parameter_identifier: str, parameter_data: str,
-            done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
-        if not arm._connect(Arm.TASK_SERVER_TOPIC_NAME):
-            rospy.logerr("Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?")
-            return None
-
-        task_parameter = TaskParameter(identifier=parameter_identifier, data=parameter_data)
-        sub_task = SetTask(stage=task_stage, task_parameters=[task_parameter])
-        goal = SetTaskGoal(modification=[sub_task])
-        return arm._action_clients[Arm.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
-            else arm._action_clients[Arm.TASK_SERVER_TOPIC_NAME].send_goal(goal, done_cb)
-
-
-class ArmMoveItMacroAction(Action):
-    @staticmethod
-    def execute(arm: Arm, goal_type: str, goal_name: str,
-            done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        if not arm._connect(Arm.MOVEIT_MACROS_TOPIC_NAME):
-            rospy.logerr("Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?")
-            return None
-
-        goal = MoveItMacroGoal(type=goal_type, name=goal_name)
-        return arm._action_clients[Arm.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
-            else arm._action_clients[Arm.MOVEIT_MACROS_TOPIC_NAME].send_goal(goal, done_cb)
-
-
-class ArmForceTorqueObserverAction(Action):
-    @staticmethod
-    def execute(arm: Arm, threshold: float, timeout: float) -> bool:
-        if not arm._connect(Arm.FT_OBSERVER_TOPIC_NAME):
-            rospy.logerr("Did you launch the ft_observer node?")
-            return False
-
-        goal = FtObserverGoal(threshold=threshold, timeout=timeout)
-        action_client = arm._action_clients[Arm.FT_OBSERVER_TOPIC_NAME]
-        action_client.send_goal(goal)
-        action_client.wait_for_result()
-        # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
-        return int(action_client.get_state()) == 3
+from robot_api.lib import ActionlibComponent, get_angle_between
 
 
 class TaskStage(IntEnum):
@@ -120,13 +77,52 @@ class Arm(ActionlibComponent):
             for token, content in group_tokens if "group='arm'" in token or 'group="arm"' in token
         }
 
+    def _call_moveit_macro(self, goal_type: str, goal_name: str,
+            done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
+        """Call MoveItMacro with goal_type and goal_name. Optionally, call done_cb() afterwards if given."""
+        if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
+            rospy.logerr("Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?")
+            return None
+
+        goal = MoveItMacroGoal(type=goal_type, name=goal_name)
+        return self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
+            else self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal(goal, done_cb)
+
+    def _call_task_server(self, task_stage: int, parameter_identifier: str, parameter_data: str,
+            done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
+        """Call Task Server with a goal based on the given task and parameter information.
+        Optionally, call done_cb() afterwards if given.
+        """
+        if not self._connect(self.TASK_SERVER_TOPIC_NAME):
+            rospy.logerr("Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?")
+            return None
+
+        task_parameter = TaskParameter(identifier=parameter_identifier, data=parameter_data)
+        sub_task = SetTask(stage=task_stage, task_parameters=[task_parameter])
+        goal = SetTaskGoal(modification=[sub_task])
+        return self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
+            else self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal(goal, done_cb)
+
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
         """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
-        return ArmMoveItMacroAction.execute(self, "function", action_name, done_cb)
+        return self._call_moveit_macro("function", action_name, done_cb)
 
     def move(self, pose_name: str, done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
         """Move arm to pose named pose_name. Optionally, call done_cb() afterwards if given."""
-        return ArmTaskServerAction.execute(self, TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb)
+        return self._call_task_server(TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb)
+
+    def observe_force_torque(self, threshold: float, timeout: float) -> bool:
+        """Call force torque observer with given threshold and timeout. Return whether successful."""
+        if not self._connect(self.FT_OBSERVER_TOPIC_NAME):
+            rospy.logerr("Did you launch the ft_observer node?")
+            return False
+
+        goal = FtObserverGoal(threshold=threshold, timeout=timeout)
+        action_client = self._action_clients[self.FT_OBSERVER_TOPIC_NAME]
+        action_client.send_goal(goal)
+        action_client.wait_for_result()
+        # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
+        return int(action_client.get_state()) == 3
 
     def get_pose_name(self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""

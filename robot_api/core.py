@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import Action, ActionlibComponent, Storage, TuplePose, get_angle_between, _init_node
+from robot_api.lib import ActionlibComponent, Storage, TuplePose, get_angle_between, _init_node
 
 
 def _isinstance(obj: object, type_or_generic: Any) -> bool:
@@ -35,64 +35,6 @@ def _get_at(args: Any, index: int, type_or_generic: Any) -> Any:
     """Return element in args at index if its type matches type_or_generic, else None."""
     return args[index] if isinstance(args, Sequence) and len(args) > index \
         and _isinstance(args[index], type_or_generic) else None
-
-
-class BaseMoveToGoalAction(Action):
-    @staticmethod
-    def execute(base: Base, goal: MoveBaseGoal, timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        if not base._connect(Base.MOVE_BASE_TOPIC_NAME):
-            rospy.logerr("Did you launch the move_base node?")
-            return
-
-        pose = TuplePose.from_pose(goal.target_pose.pose)
-        # Add waypoint if new, and move to goal.
-        is_new_goal = pose not in Storage.waypoints.values()
-        custom_goal_name = Storage._get_custom_waypoint_name(pose)
-        rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
-            + (f"'{custom_goal_name}' " if custom_goal_name else "") + f"{pose} ...")
-        if is_new_goal:
-            Storage._add_generic_waypoint(pose)
-        if done_cb is None:
-            rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
-            return base._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal_and_wait(goal, rospy.Duration(timeout))
-        else:
-            return base._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal(goal, done_cb)
-
-
-class BaseMoveToPoseAction(Action):
-    @staticmethod
-    def execute(base: Base, pose: Pose, frame_id: str="map", timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = frame_id
-        goal.target_pose.header.stamp = rospy.Time.now()
-        goal.target_pose.pose = pose
-        return BaseMoveToGoalAction.execute(base, goal, timeout, done_cb)
-
-
-class BaseMoveToTuplePoseAction(Action):
-    @staticmethod
-    def execute(base: Base, pose: Tuple[Sequence[float], Sequence[float]], frame_id: str="map", timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        return BaseMoveToPoseAction.execute(base, TuplePose.to_pose(pose), frame_id, timeout, done_cb)
-
-
-class BaseMoveToPositionOrientationAction(Action):
-    @staticmethod
-    def execute(base: Base, position: Sequence[float], orientation: Sequence[float], frame_id: str="map",
-            timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        return BaseMoveToPoseAction.execute(base, TuplePose.to_pose((position, orientation)),
-            frame_id, timeout, done_cb)
-
-
-class BaseMoveToCoordinatesAction(Action):
-    @staticmethod
-    def execute(base: Base, x: float, y: float, z: float, roll: float, pitch: float, yaw: float,
-            frame_id: str="map", timeout: float=60.0,
-            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        return BaseMoveToPoseAction.execute(base, TuplePose.to_pose(((x, y, z),
-            tf.transformations.quaternion_from_euler(roll, pitch, yaw))), frame_id, timeout, done_cb)
 
 
 class Base(ActionlibComponent):
@@ -158,6 +100,58 @@ class Base(ActionlibComponent):
                 min_yaw_distance = yaw_distance
         return pose_name
 
+    def move_to_goal(self, goal: MoveBaseGoal, timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to goal with timeout. Optionally, call done_cb() afterwards if given."""
+        if not self._connect(Base.MOVE_BASE_TOPIC_NAME):
+            rospy.logerr("Did you launch the move_base node?")
+            return
+
+        pose = TuplePose.from_pose(goal.target_pose.pose)
+        # Add waypoint if new, and move to goal.
+        is_new_goal = pose not in Storage.waypoints.values()
+        custom_goal_name = Storage._get_custom_waypoint_name(pose)
+        rospy.logdebug(f"Sending {'new ' if is_new_goal else ''}navigation goal " \
+            + (f"'{custom_goal_name}' " if custom_goal_name else "") + f"{pose} ...")
+        if is_new_goal:
+            Storage._add_generic_waypoint(pose)
+        if done_cb is None:
+            rospy.logdebug(f"Waiting for navigation result with timeout of {timeout} s ...")
+            return self._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal_and_wait(goal, rospy.Duration(timeout))
+        else:
+            return self._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal(goal, done_cb)
+
+    def move_to_pose(self, pose: Pose, frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to pose in frame_id's map with timeout. Optionally, call done_cb() afterwards if given."""
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = frame_id
+        goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose = pose
+        return self.move_to_goal(goal, timeout, done_cb)
+
+    def move_to_tuple_pose(self, pose: Tuple[Sequence[float], Sequence[float]], frame_id: str="map",
+            timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to pose in frame_id's map with timeout. Optionally, call done_cb() afterwards if given."""
+        return self.move_to_pose(TuplePose.to_pose(pose), frame_id, timeout, done_cb)
+
+    def move_to_position_and_orientation(self, position: Sequence[float], orientation: Sequence[float],
+            frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to position and orientation in frame_id's map with timeout.
+        Optionally, call done_cb() afterwards if given.
+        """
+        return self.move_to_pose(TuplePose.to_pose((position, orientation)), frame_id, timeout, done_cb)
+
+    def move_to_coordinates(self, x: float, y: float, z: float, roll: float, pitch: float, yaw: float,
+            frame_id: str="map", timeout: float=60.0,
+            done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
+        """Move robot to position (x, y, z) and orientation (roll, pitch, yaw) in frame_id's map with timeout.
+        Optionally, call done_cb() afterwards if given.
+        """
+        return self.move_to_pose(TuplePose.to_pose(((x, y, z),
+            tf.transformations.quaternion_from_euler(roll, pitch, yaw))), frame_id, timeout, done_cb)
+
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
         """Move robot to waypoint by name in frame_id's map with timeout.
@@ -171,8 +165,7 @@ class Base(ActionlibComponent):
                 rospy.logerr(f"No waypoints defined yet, so cannot use waypoint '{name}'.")
             return
 
-        return BaseMoveToPoseAction.execute(self, TuplePose.to_pose(Storage.waypoints[name]),
-            frame_id, timeout, done_cb)
+        return self.move_to_pose(TuplePose.to_pose(Storage.waypoints[name]), frame_id, timeout, done_cb)
 
     @overload
     def move(self, goal: MoveBaseGoal, frame_id: str="map", timeout: float=60.0,
@@ -224,17 +217,15 @@ class Base(ActionlibComponent):
                         if x is None or y is None or yaw is None:
                             raise Excepthook.expect(ValueError("1. Goal, 2. pose, 3. position and orientation,"
                                 " or 4. x, y, and yaw must be specified."))
-                        return BaseMoveToCoordinatesAction.execute(self, x, y, z, roll, pitch, yaw, frame_id, timeout,
-                            done_cb)
+                        return self.move_to_coordinates(x, y, z, roll, pitch, yaw, frame_id, timeout, done_cb)
                     else:
                         # Raise error if only one of position and orientation is specified.
                         raise Excepthook.expect(ValueError("Both 'position' and 'orientation' parameters"
                             " must be specified."))
-                return BaseMoveToPositionOrientationAction.execute(self, position, orientation, frame_id, timeout,
-                    done_cb)
-            return BaseMoveToPoseAction.execute(self, pose, frame_id, timeout, done_cb) if isinstance(pose, Pose) \
-                else BaseMoveToTuplePoseAction.execute(self, pose, frame_id, timeout, done_cb)
-        return BaseMoveToGoalAction.execute(self, goal, timeout, done_cb)
+                return self.move_to_position_and_orientation(position, orientation, frame_id, timeout, done_cb)
+            return self.move_to_pose(pose, frame_id, timeout, done_cb) if isinstance(pose, Pose) \
+                else self.move_to_tuple_pose(pose, frame_id, timeout, done_cb)
+        return self.move_to_goal(goal, timeout, done_cb)
 
 
 class Robot:

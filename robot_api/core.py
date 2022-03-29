@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Type, Union, overload
+from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union, get_args, get_origin, overload
 import time
 import math
 import rospy
@@ -12,19 +12,29 @@ from robot_api.excepthook import Excepthook
 from robot_api.lib import Action, ActionlibComponent, Storage, TuplePose, get_angle_between, _init_node
 
 
-def _isinstance(obj: object, type_or_types: Union[Type, Tuple[Type, ...]]) -> bool:
-    """Return whether obj's and its potential elements' types match type_or_types."""
-    if isinstance(type_or_types, tuple):
-        return _isinstance(obj, type_or_types[0]) and (len(type_or_types) <= 1 \
-            or isinstance(obj, Sequence) and all(_isinstance(element, type_or_types[1:]) for element in obj))
+def _isinstance(obj: object, type_or_generic: Any) -> bool:
+    """Return whether obj's and its potential elements' types match type_or_generic."""
+    origin = get_origin(type_or_generic)
+    if origin:
+        args = get_args(type_or_generic)
+        if origin is Union:
+            return any(_isinstance(obj, arg) for arg in args)
+        if issubclass(origin, tuple) and (len(args) < 2 or args[1] is not Ellipsis):
+            return isinstance(obj, origin) and len(obj) == len(args) and all(_isinstance(element, arg)
+                for element, arg in zip(obj, args))
+        if issubclass(origin, Sequence):
+            return isinstance(obj, origin) and all(_isinstance(element, args[0]) for element in obj)
+        if issubclass(origin, Mapping):
+            return isinstance(obj, origin) and all(_isinstance(key, args[0]) and _isinstance(value, args[1])
+                for key, value in obj.items())
+        raise NotImplementedError(f"_isinstance() is not implemented for {type_or_generic}!")
+    return isinstance(obj, type_or_generic)
 
-    return isinstance(obj, type_or_types)
 
-
-def _get_at(args: Any, index: int, type_or_types: Union[Type, Tuple[Type, ...]]) -> Any:
-    """Return element in args at index if its type matches type_or_types, else None."""
+def _get_at(args: Any, index: int, type_or_generic: Any) -> Any:
+    """Return element in args at index if its type matches type_or_generic, else None."""
     return args[index] if isinstance(args, Sequence) and len(args) > index \
-        and _isinstance(args[index], type_or_types) else None
+        and _isinstance(args[index], type_or_generic) else None
 
 
 class BaseMoveToGoalAction(Action):
@@ -198,9 +208,9 @@ class Base(ActionlibComponent):
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None, **kwargs: Any) -> Any:
         goal: Optional[MoveBaseGoal] = kwargs.get("goal", _get_at(args, 0, MoveBaseGoal))
         pose: Optional[Union[Pose, Tuple[Sequence[float], Sequence[float]]]] = kwargs.get("pose",
-            _get_at(args, 0, Pose) or _get_at(args, 0, (tuple, Sequence, float)))
-        position: Optional[Sequence[float]] = kwargs.get("position", _get_at(args, 0, (Sequence, float)))
-        orientation: Optional[Sequence[float]] = kwargs.get("orientation", _get_at(args, 1, (Sequence, float)))
+            _get_at(args, 0, Union[Pose, Tuple[Sequence[float], Sequence[float]]]))
+        position: Optional[Sequence[float]] = kwargs.get("position", _get_at(args, 0, Sequence[float]))
+        orientation: Optional[Sequence[float]] = kwargs.get("orientation", _get_at(args, 1, Sequence[float]))
         x: float = kwargs.get("x", _get_at(args, 0, float))
         y: float = kwargs.get("y", _get_at(args, 1, float))
         z: float = kwargs.get("z", _get_at(args, 2, float) if len(args) > 3 else 0.0)

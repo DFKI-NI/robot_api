@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 import os
 import shlex
 import subprocess
@@ -11,6 +11,7 @@ import rospy
 import rosnode
 import rosgraph
 import genpy
+import tf
 import actionlib
 import yaml
 from collections import OrderedDict
@@ -201,6 +202,28 @@ def get_angle_between(source: float, target: float) -> float:
     while angle >= math.pi:
         angle -= 2 * math.pi
     return angle
+
+
+def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
+        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]],
+        xy_tolerance=math.inf, yaw_tolerance=math.inf) -> Optional[str]:
+    """Return the name of the closest of poses to pose within the given tolerances."""
+    position, orientation = pose
+    _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
+    pose_name: Optional[str] = None
+    min_yaw_distance = math.pi
+    for check_name, (check_position, check_orientation) in poses.items():
+        _, _, check_yaw = tf.transformations.euler_from_quaternion(check_orientation)
+        xy_distance = math.dist(position, check_position)
+        yaw_distance = abs(get_angle_between(yaw, check_yaw))
+        # Continue choosing closer positions, or in case of equal xy_distance closer orientations.
+        if xy_distance <= xy_tolerance and yaw_distance <= yaw_tolerance \
+                and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance):
+            pose_name = check_name
+            xy_tolerance = xy_distance
+            # Note: A closer position has precedence and will be chosen regardless of orientation.
+            min_yaw_distance = yaw_distance
+    return pose_name
 
 
 def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> None:

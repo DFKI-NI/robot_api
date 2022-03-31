@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
 from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook
-from robot_api.lib import ActionlibComponent, Storage, TuplePose, get_angle_between, _init_node
+from robot_api.lib import ActionlibComponent, Storage, TuplePose, _init_node, get_pose_name
 
 
 def _isinstance(obj: object, type_or_generic: Any) -> bool:
@@ -83,22 +83,8 @@ class Base(ActionlibComponent):
             rospy.logwarn("No poses given to compare to.")
             return None
 
-        position, orientation = self.get_pose(timeout=timeout)
-        _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
-        pose_name: Optional[str] = None
-        min_yaw_distance = math.pi
-        for check_name, (check_position, check_orientation) in poses.items():
-            _, _, check_yaw = tf.transformations.euler_from_quaternion(check_orientation)
-            xy_distance = math.dist(position, check_position)
-            yaw_distance = abs(get_angle_between(yaw, check_yaw))
-            # Continue choosing closer positions, or in case of equal xy_distance closer orientations.
-            if xy_distance <= xy_tolerance and yaw_distance <= yaw_tolerance \
-                    and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance):
-                pose_name = check_name
-                xy_tolerance = xy_distance
-                # Note: A closer position has precedence and will be chosen regardless of orientation.
-                min_yaw_distance = yaw_distance
-        return pose_name
+        return get_pose_name(self.get_pose(timeout=timeout), poses, xy_tolerance, yaw_tolerance)
+
 
     def move_to_goal(self, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:

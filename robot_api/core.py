@@ -2,7 +2,6 @@
 from __future__ import annotations
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union, get_args, get_origin, overload
 import time
-import math
 import rospy
 import tf
 from geometry_msgs.msg import Pose
@@ -23,10 +22,10 @@ def _isinstance(obj: object, type_or_generic: Any) -> bool:
             return isinstance(obj, origin) and len(obj) == len(args) and all(_isinstance(element, arg)
                 for element, arg in zip(obj, args))
         if issubclass(origin, Sequence):
-            return isinstance(obj, origin) and all(_isinstance(element, args[0]) for element in obj)
+            return isinstance(obj, origin) and (not args or all(_isinstance(element, args[0]) for element in obj))
         if issubclass(origin, Mapping):
-            return isinstance(obj, origin) and all(_isinstance(key, args[0]) and _isinstance(value, args[1])
-                for key, value in obj.items())
+            return isinstance(obj, origin) and (not args or all(_isinstance(key, args[0])
+                and _isinstance(value, args[1]) for key, value in obj.items()))
         raise NotImplementedError(f"_isinstance() is not implemented for {type_or_generic}!")
     return isinstance(obj, type_or_generic)
 

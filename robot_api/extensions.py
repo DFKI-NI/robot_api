@@ -28,7 +28,6 @@ class TaskStage(IntEnum):
 class Arm(ActionlibComponent):
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
-    TASK_SERVER_TOPIC_NAME = "task_server/set_task"
     MOVEIT_MACROS_TOPIC_NAME = "moveit_macros"
     FT_OBSERVER_TOPIC_NAME = "ft_observer"
     ANGLE_TOLERANCE = 0.01

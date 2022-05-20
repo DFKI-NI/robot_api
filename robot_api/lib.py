@@ -259,8 +259,8 @@ def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> No
     Storage.waypoints[name] = TuplePose.from_sequence_tuple(pose)
 
 
-def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-    """Save waypoints to file, default: '~/.ros/robot_api_waypoints.txt'."""
+def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+    """Save waypoints to file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     if not Storage.waypoints:
         rospy.logwarn("No waypoints to save.")
@@ -276,8 +276,8 @@ def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         rospy.logerr(f"Error while writing to file '{filepath}'!")
 
 
-def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-    """Load waypoints from file, default: '~/.ros/robot_api_waypoints.txt'."""
+def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+    """Load waypoints from file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     filepath = os.path.expanduser(filepath)
     try:

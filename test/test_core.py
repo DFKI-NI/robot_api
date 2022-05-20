@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from typing import Dict, List, Tuple, Type, Union
 import pytest
-from robot_api import _isinstance, _get_at
+from robot_api.core import _isinstance, _get_at
 
 
 def test_isinstance() -> None:

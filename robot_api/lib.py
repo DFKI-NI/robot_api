@@ -213,7 +213,7 @@ def get_angle_between(source: float, target: float) -> float:
 
 
 def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
-        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]],
+        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
         xy_tolerance=math.inf, yaw_tolerance=math.inf) -> Optional[str]:
     """Return the name of the closest of poses to pose within the given tolerances."""
     position, orientation = pose

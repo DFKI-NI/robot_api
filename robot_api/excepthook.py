@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Sequence, Type
 from types import TracebackType
 import sys
 
@@ -18,8 +18,10 @@ class Excepthook:
             Excepthook._sys_excepthook(exception_type, exception_value, traceback)
 
     @staticmethod
-    def expect(exception: BaseException) -> BaseException:
+    def expect(exception: BaseException, args: Optional[Sequence[str]]=None) -> BaseException:
         """Suppress traceback if exception is raised as expected. Otherwise, use sys.excepthook by default."""
+        if args:
+            exception.args = tuple(args)
         Excepthook._expected_exception = exception
         sys.excepthook = Excepthook._excepthook
         return exception

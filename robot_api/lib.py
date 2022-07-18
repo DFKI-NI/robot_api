@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, get_args, get_origin
 import os
 import shlex
 import subprocess
@@ -177,21 +177,29 @@ class ActionlibComponent:
         return self._action_clients[server_name].get_result()
 
 
-def find_robot_namespaces() -> List[str]:
-    """Return list of robot namespaces by searching published topics for move_base/goal."""
-    _init_node()
-    try:
-        topics = rospy.get_published_topics()
-    except ConnectionRefusedError as e:
-        raise Excepthook.expect(e)
+def is_instance(obj: object, type_or_generic: Any) -> bool:
+    """Return whether obj's and its potential elements' types match type_or_generic."""
+    origin = get_origin(type_or_generic)
+    if origin:
+        args = get_args(type_or_generic)
+        if origin is Union:
+            return any(is_instance(obj, arg) for arg in args)
+        if issubclass(origin, tuple) and (len(args) < 2 or args[1] is not Ellipsis):
+            return isinstance(obj, origin) and len(obj) == len(args) and all(is_instance(element, arg)
+                for element, arg in zip(obj, args))
+        if issubclass(origin, Sequence):
+            return isinstance(obj, origin) and (not args or all(is_instance(element, args[0]) for element in obj))
+        if issubclass(origin, Mapping):
+            return isinstance(obj, origin) and (not args or all(is_instance(key, args[0])
+                and is_instance(value, args[1]) for key, value in obj.items()))
+        raise NotImplementedError(f"is_instance() is not implemented for {type_or_generic}!")
+    return isinstance(obj, type_or_generic)
 
-    robot_namespaces: List[str] = []
-    for topic, message_type in topics:
-        if message_type == "move_base_msgs/MoveBaseActionGoal":
-            match_result = re.match(r'\/(\w+)\/move_base\/goal', topic)
-            if match_result:
-                robot_namespaces.append(match_result.group(1))
-    return robot_namespaces
+
+def get_at(args: Any, index: int, type_or_generic: Any) -> Any:
+    """Return element in args at index if its type matches type_or_generic, else None."""
+    return args[index] if isinstance(args, Sequence) and len(args) > index \
+        and is_instance(args[index], type_or_generic) else None
 
 
 def get_angle_between(source: float, target: float) -> float:
@@ -205,7 +213,7 @@ def get_angle_between(source: float, target: float) -> float:
 
 
 def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
-        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]],
+        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
         xy_tolerance=math.inf, yaw_tolerance=math.inf) -> Optional[str]:
     """Return the name of the closest of poses to pose within the given tolerances."""
     position, orientation = pose
@@ -226,6 +234,23 @@ def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
     return pose_name
 
 
+def find_robot_namespaces() -> List[str]:
+    """Return list of robot namespaces by searching published topics for move_base/goal."""
+    _init_node()
+    try:
+        topics = rospy.get_published_topics()
+    except ConnectionRefusedError as e:
+        raise Excepthook.expect(e)
+
+    robot_namespaces: List[str] = []
+    for topic, message_type in topics:
+        if message_type == "move_base_msgs/MoveBaseActionGoal":
+            match_result = re.match(r'\/(\w+)\/move_base\/goal', topic)
+            if match_result:
+                robot_namespaces.append(match_result.group(1))
+    return robot_namespaces
+
+
 def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
     """Store waypoint with name and pose ((x, y, z), (qx, qy, qz, qw))."""
     _init_node()
@@ -234,8 +259,8 @@ def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> No
     Storage.waypoints[name] = TuplePose.from_sequence_tuple(pose)
 
 
-def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-    """Save waypoints to file, default: '~/.ros/robot_api_waypoints.txt'."""
+def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+    """Save waypoints to file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     if not Storage.waypoints:
         rospy.logwarn("No waypoints to save.")
@@ -251,8 +276,8 @@ def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
         rospy.logerr(f"Error while writing to file '{filepath}'!")
 
 
-def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.txt") -> None:
-    """Load waypoints from file, default: '~/.ros/robot_api_waypoints.txt'."""
+def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+    """Load waypoints from file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     filepath = os.path.expanduser(filepath)
     try:

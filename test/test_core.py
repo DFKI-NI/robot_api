@@ -4,7 +4,7 @@ import pytest
 from robot_api import is_instance, get_at
 
 
-def testis_instance() -> None:
+def test_is_instance() -> None:
     assert is_instance(1, int)
     assert not is_instance(0, bool)
     assert is_instance(False, int)
@@ -32,7 +32,7 @@ def testis_instance() -> None:
         assert is_instance(type, Type)
 
 
-def testget_at() -> None:
+def test_get_at() -> None:
     args = [0, "one", (2, 3), {4: 5}]
     assert get_at(args, 0, int) == 0
     assert get_at(args, 1, int) is None

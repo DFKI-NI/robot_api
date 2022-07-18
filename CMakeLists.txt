@@ -10,6 +10,7 @@ add_compile_options(-std=c++14)
 find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   eigen_conversions
+  geometric_shapes
   geometry_msgs
   moveit_msgs
   moveit_ros_planning_interface

@@ -88,25 +88,26 @@ class TuplePose:
 
 
 class Storage:
+    """Helper class for automatically generating navigation waypoints."""
     waypoints: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]] = OrderedDict()
     _next_waypoint = 1
 
     @classmethod
     def _add_generic_waypoint(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
-        """Add pose with a generic name to dict of stored waypoints."""
+        """Add pose with a generic name to stored waypoints."""
         while "waypoint" + str(cls._next_waypoint) in cls.waypoints.keys():
             cls._next_waypoint += 1
         cls.waypoints["waypoint" + str(cls._next_waypoint)] = TuplePose.from_sequence_tuple(pose)
 
     @classmethod
     def _waypoints_to_str(cls) -> str:
-        """Convert OrderedDict representation of waypoints to str."""
+        """Convert internal representation of waypoints to str."""
         return '\n'.join(f"'{waypoint_name}': {TuplePose.to_str(waypoint)}"
             for waypoint_name, waypoint in cls.waypoints.items())
 
     @classmethod
     def _get_custom_waypoint_name(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> str:
-        """Return custom name of waypoint (position, orientation) if it exists."""
+        """Return custom name of waypoint pose == (position, orientation) if it exists."""
         tuple_pose = TuplePose.from_sequence_tuple(pose)
         for name, waypoint in cls.waypoints.items():
             if re.match(r'waypoint\d+', name) is None and waypoint == tuple_pose:
@@ -117,7 +118,7 @@ class Storage:
 class ActionlibComponent:
     """
     Robot component, which automatically connects to ROS actionlib servers given in server_specs.
-    Unless you connect_on_init, connection will be established on first usage.
+    Unless you connect_on_init, connection will be established lazily on first usage.
     """
     def __init__(self, namespace: str, server_specs: Dict[str, Union[Tuple[genpy.Message],
             Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
@@ -136,7 +137,10 @@ class ActionlibComponent:
         return _is_topic_of_type(self._namespace, server_name + "/result", action_spec.__name__ + "Result")
 
     def _connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
-        """Connect action client to server_name if not yet successfully done."""
+        """
+        Connect action client to server_name if not yet successfully done.
+        Return whether the connection succeeded.
+        """
         self._last_server_name = server_name
         if not server_name in self._action_clients.keys():
             server_spec = self._server_specs[server_name]

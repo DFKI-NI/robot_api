@@ -42,15 +42,15 @@ The idea is not new at all. See for example Facebook's [PyRobot](https://pyrobot
 
 ### Typed interfaces
 
-When defining an interface, you might as well make it elaborate, even when it's Python. You will notice the difference when using an IDE with code completion or static type checking. `*args` and `**kwargs` are universal parameters but might require more of trail and error from the user than necessary.
+When defining an interface, you might as well make it elaborate, even when it's Python. You will notice the difference when using an IDE with code completion or static type checking. `*args` and `**kwargs` are universal parameters but might require more of trial and error from the user than necessary.
 
 ### ROS wrapper
 
-At least on user side, you don't need to worry about importing `rospy` or initializing a ROS node to use the `robot_api`. Beneath it, ROS is used indeed since a running ROS environment is a prerequisite in the first place. In the future, ROS 2 shall be supported as well. Under these circumstances, it makes sense for `robot_api` to accept ROS message types as parameters anyway. A detailed example is `Base.move()`, which accepts several variations of ROS and non-ROS parameters.
+At least on user side, you don't need to worry about importing `rospy` or initializing a ROS node to use the `robot_api`. Beneath it, ROS is used indeed since a running ROS environment is a prerequisite in the first place. In the future, ROS 2 shall be supported as well. Under these circumstances, it makes sense for `robot_api` to accept ROS message types as parameters, even if the user is not required to know about ROS. A detailed example is `Base.move()`, which accepts several variations of ROS and non-ROS parameters.
 
 ### Class structure
 
-Some considerations have been made about whether you might prefer to type `robot.move_base()` over `robot.base.move()`. In the end, the syntax is chosen to adhere to a meaningful component model. A base with localization and navigation capabilities is assumed to exist for any robot, and its functionality is encapsulated in a `Robot()`'s `base` variable. Additional components are available as separate field variables of the `Robot` class. The interface definition at this point is still work in progress.
+Some considerations have been made about whether you might prefer to type `robot.move_base()` over `robot.base.move()`. In the end, the syntax is chosen to adhere to a meaningful component model. A base with localization and navigation capabilities is assumed to exist for any robot, and its functionality is encapsulated in a `Robot()`'s `base` attribute. Additional components are available as separate attributes of the `Robot` class. The interface definition at this point is still work in progress.
 
 ## Contribution
 
@@ -58,11 +58,11 @@ Your contribution is very welcome. Much robot specific functionality is still mi
 
 ### Actions
 
-All actions of all robots shall inherit from the Action class and implement an `execute()` static method. Preferably, each action has only one specific purpose. Convenience methods are available as class methods of `Base` or extensions, and they delegate action execution to specific Action implementations based on the parameter values. Again, `Base.move()` demonstrates a sample implementation of this concept.
+Action can be implemented in any form you want. Preferably, each action has only one specific purpose. Convenience methods are available as class methods of `Base` or extensions, for example, and they delegate action execution to specific implementations based on the parameter values. `Base.move()` demonstrates a sample implementation of this concept.
 
 ### Extensions
 
-Feel free to add further extensions as fields to the `Robot` class but keep in mind that these will exist then for all robots, even if they might not have the respective components. For example, `Base.arm` is such an extension. A gripper should not be an extension of `Base` unless we one day actually have a gripper on a robot's base without an arm. It could be an extension of `Base.arm` if you see benefits in encapsulating it further.
+Feel free to add further extensions as attributes to the `Robot` class but keep in mind that these will exist then for all robots, even if they might not have the respective components. For example, `Base.arm` is such an extension. A gripper should not be an extension of `Base` unless we one day actually have a gripper on a robot's base without an arm. It could be an extension of `Base.arm` if you see benefits in encapsulating it further.
 
 ### Connections
 

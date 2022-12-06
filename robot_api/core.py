@@ -12,6 +12,8 @@ from robot_api.lib import ActionlibComponent, Storage, TuplePose, _init_node, ge
 
 
 class Base(ActionlibComponent):
+    """Representation of a robot's base with navigation capabilities."""
+
     MOVE_BASE_TOPIC_NAME = "move_base"
     # Note: Cannot use move_base goal tolerances because movement by move_base does not guarantee its thresholds.
     XY_TOLERANCE = 0.2
@@ -59,10 +61,12 @@ class Base(ActionlibComponent):
 
         return get_pose_name(self.get_pose(timeout=timeout), poses, xy_tolerance, yaw_tolerance)
 
-
     def move_to_goal(self, goal: MoveBaseGoal, timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to goal with timeout. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to goal with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         if not self._connect(Base.MOVE_BASE_TOPIC_NAME):
             rospy.logerr("Did you launch the move_base node?")
             return
@@ -83,7 +87,10 @@ class Base(ActionlibComponent):
 
     def move_to_pose(self, pose: Pose, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to pose in frame_id's map with timeout. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = frame_id
         goal.target_pose.header.stamp = rospy.Time.now()
@@ -92,13 +99,17 @@ class Base(ActionlibComponent):
 
     def move_to_tuple_pose(self, pose: Tuple[Sequence[float], Sequence[float]], frame_id: str="map",
             timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to pose in frame_id's map with timeout. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         return self.move_to_pose(TuplePose.to_pose(pose), frame_id, timeout, done_cb)
 
     def move_to_position_and_orientation(self, position: Sequence[float], orientation: Sequence[float],
             frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to position and orientation in frame_id's map with timeout.
+        """
+        Move robot to position and orientation in frame_id's map with timeout. Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self.move_to_pose(TuplePose.to_pose((position, orientation)), frame_id, timeout, done_cb)
@@ -106,7 +117,8 @@ class Base(ActionlibComponent):
     def move_to_coordinates(self, x: float, y: float, z: float, roll: float, pitch: float, yaw: float,
             frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to position (x, y, z) and orientation (roll, pitch, yaw) in frame_id's map with timeout.
+        """
+        Move robot to position (x, y, z) and orientation (roll, pitch, yaw) in frame_id's map with timeout. Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self.move_to_pose(TuplePose.to_pose(((x, y, z),
@@ -114,7 +126,8 @@ class Base(ActionlibComponent):
 
     def move_to_waypoint(self, name: str, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to waypoint by name in frame_id's map with timeout.
+        """
+        Move robot to waypoint by name in frame_id's map with timeout. Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         if name not in Storage.waypoints.keys():
@@ -130,31 +143,46 @@ class Base(ActionlibComponent):
     @overload
     def move(self, goal: MoveBaseGoal, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to goal. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to goal with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         ...
 
     @overload
     def move(self, pose: Union[Pose, Tuple[Sequence[float], Sequence[float]]], frame_id: str="map",
             timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to pose. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         ...
 
     @overload
     def move(self, position: Sequence[float], orientation: Sequence[float], frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to position and orientation. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to position and orientation in frame_id's map with timeout. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         ...
 
     @overload
     def move(self, x: float, y: float, yaw: float, frame_id: str="map", timeout: float=60.0,
             done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to pose given by x, y, and yaw in radians. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to pose given by x, y, and yaw in radians. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         ...
 
     @overload
     def move(self, x: float, y: float, z: float, roll: float, pitch: float, yaw: float, frame_id: str="map",
             timeout: float=60.0, done_cb: Optional[Callable[[int, MoveBaseResult], Any]]=None) -> Any:
-        """Move robot to given 6D pose. Optionally, call done_cb() afterwards if given."""
+        """
+        Move robot to given 6D pose. Return the move_base action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         ...
 
     def move(self, *args: Any, frame_id: str="map", timeout: float=60.0,
@@ -175,7 +203,7 @@ class Base(ActionlibComponent):
                 if not position or not orientation:
                     if not position and not orientation:
                         if x is None or y is None or yaw is None:
-                            raise Excepthook.expect(ValueError("1. Goal, 2. pose, 3. position and orientation,"
+                            raise Excepthook.expect(ValueError("1. goal, 2. pose, 3. position and orientation,"
                                 " or 4. x, y, and yaw must be specified."))
                         return self.move_to_coordinates(x, y, z, roll, pitch, yaw, frame_id, timeout, done_cb)
                     else:

@@ -76,7 +76,10 @@ class Arm(ActionlibComponent):
 
     def _call_moveit_macro(self, goal_type: str, goal_name: str,
             done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Call MoveItMacro with goal_type and goal_name. Optionally, call done_cb() afterwards if given."""
+        """
+        Call MoveItMacro with goal_type and goal_name. Return the moveit_macro action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
             rospy.logerr("Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?")
             return None
@@ -86,11 +89,17 @@ class Arm(ActionlibComponent):
             else self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal(goal, done_cb)
 
     def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Execute moveit_macro named action_name. Optionally, call done_cb() afterwards if given."""
+        """
+        Execute moveit_macro named action_name. Return the moveit_macro action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         return self._call_moveit_macro("function", action_name, done_cb)
 
     def move(self, pose_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
-        """Move arm to pose named pose_name. Optionally, call done_cb() afterwards if given."""
+        """
+        Move arm to pose named pose_name. Return the moveit_macro action server's result.
+        Optionally, call done_cb() afterwards if given.
+        """
         return self._call_moveit_macro("target", pose_name, done_cb)
 
     def observe_force_torque(self, threshold: float, timeout: float) -> bool:

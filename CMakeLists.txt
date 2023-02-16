@@ -222,4 +222,4 @@ install(DIRECTORY
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-roslaunch_add_file_check(launch)
+roslaunch_add_file_check(launch namespace:=mobipick)

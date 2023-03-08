@@ -53,6 +53,14 @@ def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
     return False
 
 
+def _is_topic_with_suffix(namespace: str, topic: str, suffix: str) -> bool:
+    """Return whether topic is published in namespace and its type ends with suffix."""
+    for check_topic, check_message_type in rospy.get_published_topics(namespace):
+        if check_topic == namespace + topic and check_message_type.endswith(suffix):
+            return True
+    return False
+
+
 def _execute(command: str, sleep_duration: int=0) -> None:
     """Execute command in a new subprocess and sleep for sleep_duration seconds."""
     rospy.loginfo(command)
@@ -133,8 +141,7 @@ class ActionlibComponent:
 
     def _has_actionlib_result(self, server_name: str) -> bool:
         """Return whether there exists an actionlib result topic for server_name."""
-        action_spec = self._server_specs[server_name][0]
-        return _is_topic_of_type(self._namespace, server_name + "/result", action_spec.__name__ + "Result")
+        return _is_topic_with_suffix(self._namespace, server_name + "/result", "Result")
 
     def _connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
         """

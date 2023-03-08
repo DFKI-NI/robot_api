@@ -246,7 +246,7 @@ def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
 
 
 def find_robot_namespaces() -> List[str]:
-    """Return list of robot namespaces by searching published topics for move_base/goal."""
+    """Return list of robot namespaces by searching published topics for /move_base/goal."""
     _init_node()
     try:
         topics = rospy.get_published_topics()
@@ -254,11 +254,10 @@ def find_robot_namespaces() -> List[str]:
         raise Excepthook.expect(e)
 
     robot_namespaces: List[str] = []
-    for topic, message_type in topics:
-        if message_type == "move_base_msgs/MoveBaseActionGoal":
-            match_result = re.match(r'\/(\w+)\/move_base\/goal', topic)
-            if match_result:
-                robot_namespaces.append(match_result.group(1))
+    for topic, _ in topics:
+        match_result = re.match(r'([\w\/]*)\/move_base\/goal', topic)
+        if match_result:
+            robot_namespaces.append(match_result.group(1))
     return robot_namespaces
 
 

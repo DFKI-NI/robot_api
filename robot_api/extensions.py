@@ -2,9 +2,12 @@
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from enum import IntEnum
+import sys
+import moveit_commander
 import re
 import rospy
 import rosparam
+from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal
 from robot_api.lib import ActionlibComponent, get_angle_between
@@ -32,7 +35,9 @@ class Arm(ActionlibComponent):
     FT_OBSERVER_TOPIC_NAME = "ft_observer"
     ANGLE_TOLERANCE = 0.01
 
-    def __init__(self, namespace: str, connect_manipulation_on_init: bool) -> None:
+    def __init__(
+            self, namespace: str, connect_manipulation_on_init: bool,
+            group_name: str = 'arm') -> None:
         super().__init__(namespace, {
             self.MOVEIT_MACROS_TOPIC_NAME: (MoveItMacroAction,
                 f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
@@ -41,6 +46,8 @@ class Arm(ActionlibComponent):
         }, connect_manipulation_on_init)
         self._pose_joint_values = self._get_pose_joint_values()
         self.pose_names = list(self._pose_joint_values.keys())
+        self.group_name = group_name
+        self._moveit_init = False
 
     @staticmethod
     def _parse(pattern: str, string: str) -> str:
@@ -48,6 +55,13 @@ class Arm(ActionlibComponent):
         match_result = re.search(pattern, string)
         assert match_result is not None, f"Error: Cannot parse '{string}' from '{pattern}'!"
         return match_result.group(1)
+
+    def _init_moveit_commander(self):
+        moveit_commander.roscpp_initialize(sys.argv)
+        self.robot = moveit_commander.RobotCommander()
+        self.scene = moveit_commander.PlanningSceneInterface()
+        self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
+        self._moveit_init = True
 
     def _get_pose_joint_values(self) -> Dict[str, Dict[str, float]]:
         """Get joint values from semantic robot description parameter used for arm poses."""
@@ -101,6 +115,29 @@ class Arm(ActionlibComponent):
         Optionally, call done_cb() afterwards if given.
         """
         return self._call_moveit_macro("target", pose_name, done_cb)
+
+    def move_to_position(self, pose: Pose) -> None:
+        """
+        Move arm endeffector to pose using the MoveIt Commander.
+        """
+        if not self._moveit_init:
+            self._init_moveit_commander()
+        self.move_group.set_pose_target(pose)
+        success = self.move_group.go(wait=True)
+        if not success:
+            rospy.logerr('moving to goal pose not successful!')
+        # Calling `stop()` ensures that there is no residual movement
+        self.move_group.stop()
+        self.move_group.clear_pose_targets()
+
+    def get_pose(self):
+        """
+        Get pose of endeffector. Use in combination with move_to_position 
+        to reach relative positions.
+        """
+        if not self._moveit_init:
+            self._init_moveit_commander()
+        return self.move_group.get_current_pose().pose
 
     def observe_force_torque(self, threshold: float, timeout: float) -> bool:
         """Call force torque observer with given threshold and timeout. Return whether successful."""

@@ -1,6 +1,16 @@
-#!/usr/bin/env python3
 from __future__ import annotations
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, get_args, get_origin
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    get_args,
+    get_origin,
+)
 import os
 import shlex
 import subprocess
@@ -19,7 +29,7 @@ from geometry_msgs.msg import Point, Pose, Quaternion
 from robot_api.excepthook import Excepthook
 
 
-def _s(count: int, name: str, plural: str='s') -> str:
+def _s(count: int, name: str, plural: str = "s") -> str:
     """Return name with or without plural ending depending on count."""
     return f"{count} {name}{plural if count != 1 else ''}"
 
@@ -37,7 +47,7 @@ def _init_node() -> None:
     name = f"robot_api_{os.getpid()}"
     # Note: ROS cannot check if a node is initialized, so we have to try.
     #   At least check if we initialized it ourselves before.
-    if ('/' + name) not in rosnode.get_node_names():
+    if ("/" + name) not in rosnode.get_node_names():
         try:
             rospy.init_node(name)
             rospy.logdebug(f"ROS node '{name}' initialized.")
@@ -48,7 +58,10 @@ def _init_node() -> None:
 def _is_topic_of_type(namespace: str, topic: str, message_type: str) -> bool:
     """Return whether topic is published in namespace using message_type."""
     for check_topic, check_message_type in rospy.get_published_topics(namespace):
-        if check_topic == namespace + topic and check_message_type.split('/')[-1] == message_type:
+        if (
+            check_topic == namespace + topic
+            and check_message_type.split("/")[-1] == message_type
+        ):
             return True
     return False
 
@@ -61,7 +74,7 @@ def _is_topic_with_suffix(namespace: str, topic: str, suffix: str) -> bool:
     return False
 
 
-def _execute(command: str, sleep_duration: int=0) -> None:
+def _execute(command: str, sleep_duration: int = 0) -> None:
     """Execute command in a new subprocess and sleep for sleep_duration seconds."""
     rospy.loginfo(command)
     subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL)
@@ -71,19 +84,25 @@ def _execute(command: str, sleep_duration: int=0) -> None:
 
 class TuplePose:
     """Helper class for handling geometry_msgs/Pose."""
+
     @staticmethod
-    def from_pose(pose: Pose) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+    def from_pose(
+        pose: Pose,
+    ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
         p, q = pose.position, pose.orientation
         return ((p.x, p.y, p.z), (q.x, q.y, q.z, q.w))
 
     @staticmethod
-    def from_sequence_tuple(pose: Tuple[Sequence[float], Sequence[float]]) \
-            -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
+    def from_sequence_tuple(
+        pose: Tuple[Sequence[float], Sequence[float]]
+    ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]:
         position, orientation = pose
         assert len(position) == 3, "First parameter must be a vector of len 3."
         assert len(orientation) == 4, "Second parameter must be a quaternion of len 4."
-        return ((position[0], position[1], position[2]),
-            (orientation[0], orientation[1], orientation[2], orientation[3]))
+        return (
+            (position[0], position[1], position[2]),
+            (orientation[0], orientation[1], orientation[2], orientation[3]),
+        )
 
     @staticmethod
     def to_pose(pose: Tuple[Sequence[float], Sequence[float]]) -> Pose:
@@ -97,28 +116,39 @@ class TuplePose:
 
 class Storage:
     """Helper class for automatically generating navigation waypoints."""
-    waypoints: Dict[str, Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]] = OrderedDict()
+
+    waypoints: Dict[
+        str, Tuple[Tuple[float, float, float], Tuple[float, float, float, float]]
+    ] = OrderedDict()
     _next_waypoint = 1
 
     @classmethod
-    def _add_generic_waypoint(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
+    def _add_generic_waypoint(
+        cls, pose: Tuple[Sequence[float], Sequence[float]]
+    ) -> None:
         """Add pose with a generic name to stored waypoints."""
         while "waypoint" + str(cls._next_waypoint) in cls.waypoints.keys():
             cls._next_waypoint += 1
-        cls.waypoints["waypoint" + str(cls._next_waypoint)] = TuplePose.from_sequence_tuple(pose)
+        cls.waypoints[
+            "waypoint" + str(cls._next_waypoint)
+        ] = TuplePose.from_sequence_tuple(pose)
 
     @classmethod
     def _waypoints_to_str(cls) -> str:
         """Convert internal representation of waypoints to str."""
-        return '\n'.join(f"'{waypoint_name}': {TuplePose.to_str(waypoint)}"
-            for waypoint_name, waypoint in cls.waypoints.items())
+        return "\n".join(
+            f"'{waypoint_name}': {TuplePose.to_str(waypoint)}"
+            for waypoint_name, waypoint in cls.waypoints.items()
+        )
 
     @classmethod
-    def _get_custom_waypoint_name(cls, pose: Tuple[Sequence[float], Sequence[float]]) -> str:
+    def _get_custom_waypoint_name(
+        cls, pose: Tuple[Sequence[float], Sequence[float]]
+    ) -> str:
         """Return custom name of waypoint pose == (position, orientation) if it exists."""
         tuple_pose = TuplePose.from_sequence_tuple(pose)
         for name, waypoint in cls.waypoints.items():
-            if re.match(r'waypoint\d+', name) is None and waypoint == tuple_pose:
+            if re.match(r"waypoint\d+", name) is None and waypoint == tuple_pose:
                 return name
         return ""
 
@@ -128,10 +158,19 @@ class ActionlibComponent:
     Robot component, which automatically connects to ROS actionlib servers given in server_specs.
     Unless you connect_on_init, connection will be established lazily on first usage.
     """
-    def __init__(self, namespace: str, server_specs: Dict[str, Union[Tuple[genpy.Message],
-            Tuple[genpy.Message, str, int]]], connect_on_init: bool=False) -> None:
+
+    def __init__(
+        self,
+        namespace: str,
+        server_specs: Dict[
+            str, Union[Tuple[genpy.Message], Tuple[genpy.Message, str, int]]
+        ],
+        connect_on_init: bool = False,
+    ) -> None:
         self._namespace = namespace
-        assert server_specs, "Error: You must init an ActionlibComponent with an item in server_specs."
+        assert (
+            server_specs
+        ), "Error: You must init an ActionlibComponent with an item in server_specs."
         self._server_specs = server_specs
         self._action_clients: Dict[str, actionlib.SimpleActionClient] = {}
         self._last_server_name: Optional[str] = None
@@ -143,7 +182,9 @@ class ActionlibComponent:
         """Return whether there exists an actionlib result topic for server_name."""
         return _is_topic_with_suffix(self._namespace, server_name + "/result", "Result")
 
-    def _connect(self, server_name: str, timeout: rospy.Duration=rospy.Duration()) -> bool:
+    def _connect(
+        self, server_name: str, timeout: rospy.Duration = rospy.Duration()
+    ) -> bool:
         """
         Connect action client to server_name if not yet successfully done.
         Return whether the connection succeeded.
@@ -161,20 +202,26 @@ class ActionlibComponent:
                     return False
 
             if not server_name in self._server_specs.keys():
-                rospy.logerr(f"Cannot connect to server '{server_name}' with unknown type.")
+                rospy.logerr(
+                    f"Cannot connect to server '{server_name}' with unknown type."
+                )
                 return False
 
-            action_client = actionlib.SimpleActionClient(self._namespace + server_name, server_spec[0])
+            action_client = actionlib.SimpleActionClient(
+                self._namespace + server_name, server_spec[0]
+            )
             if not action_client.wait_for_server(timeout=timeout):
-                rospy.logerr(f"Timeout while trying to connect to server '{server_name}'."
-                    f"{' ROS is shutting down.' if rospy.is_shutdown() else ''}")
+                rospy.logerr(
+                    f"Timeout while trying to connect to server '{server_name}'."
+                    f"{' ROS is shutting down.' if rospy.is_shutdown() else ''}"
+                )
                 return False
 
             # Note: server_name is a key in server_specs and thus unique.
             self._action_clients[server_name] = action_client
         return True
 
-    def get_result(self, server_name: Optional[str]=None) -> Any:
+    def get_result(self, server_name: Optional[str] = None) -> Any:
         """Return result from action client connected to server_name. Use the last connected server_name by default."""
         if server_name is None:
             server_name = self._last_server_name
@@ -196,21 +243,38 @@ def is_instance(obj: object, type_or_generic: Any) -> bool:
         if origin is Union:
             return any(is_instance(obj, arg) for arg in args)
         if issubclass(origin, tuple) and (len(args) < 2 or args[1] is not Ellipsis):
-            return isinstance(obj, origin) and len(obj) == len(args) and all(is_instance(element, arg)
-                for element, arg in zip(obj, args))
+            return (
+                isinstance(obj, origin)
+                and len(obj) == len(args)
+                and all(is_instance(element, arg) for element, arg in zip(obj, args))
+            )
         if issubclass(origin, Sequence):
-            return isinstance(obj, origin) and (not args or all(is_instance(element, args[0]) for element in obj))
+            return isinstance(obj, origin) and (
+                not args or all(is_instance(element, args[0]) for element in obj)
+            )
         if issubclass(origin, Mapping):
-            return isinstance(obj, origin) and (not args or all(is_instance(key, args[0])
-                and is_instance(value, args[1]) for key, value in obj.items()))
-        raise NotImplementedError(f"is_instance() is not implemented for {type_or_generic}!")
+            return isinstance(obj, origin) and (
+                not args
+                or all(
+                    is_instance(key, args[0]) and is_instance(value, args[1])
+                    for key, value in obj.items()
+                )
+            )
+        raise NotImplementedError(
+            f"is_instance() is not implemented for {type_or_generic}!"
+        )
     return isinstance(obj, type_or_generic)
 
 
 def get_at(args: Any, index: int, type_or_generic: Any) -> Any:
     """Return element in args at index if its type matches type_or_generic, else None."""
-    return args[index] if isinstance(args, Sequence) and len(args) > index \
-        and is_instance(args[index], type_or_generic) else None
+    return (
+        args[index]
+        if isinstance(args, Sequence)
+        and len(args) > index
+        and is_instance(args[index], type_or_generic)
+        else None
+    )
 
 
 def get_angle_between(source: float, target: float) -> float:
@@ -223,9 +287,12 @@ def get_angle_between(source: float, target: float) -> float:
     return angle
 
 
-def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
-        poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]]=Storage.waypoints,
-        xy_tolerance=math.inf, yaw_tolerance=math.inf) -> Optional[str]:
+def get_pose_name(
+    pose: Tuple[Sequence[float], Sequence[float]],
+    poses: Mapping[str, Tuple[Sequence[float], Sequence[float]]] = Storage.waypoints,
+    xy_tolerance=math.inf,
+    yaw_tolerance=math.inf,
+) -> Optional[str]:
     """Return the name of the closest of poses to pose within the given tolerances."""
     position, orientation = pose
     _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
@@ -236,8 +303,11 @@ def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
         xy_distance = math.dist(position, check_position)
         yaw_distance = abs(get_angle_between(yaw, check_yaw))
         # Continue choosing closer positions, or in case of equal xy_distance closer orientations.
-        if xy_distance <= xy_tolerance and yaw_distance <= yaw_tolerance \
-                and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance):
+        if (
+            xy_distance <= xy_tolerance
+            and yaw_distance <= yaw_tolerance
+            and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance)
+        ):
             pose_name = check_name
             xy_tolerance = xy_distance
             # Note: A closer position has precedence and will be chosen regardless of orientation.
@@ -255,7 +325,7 @@ def find_robot_namespaces() -> List[str]:
 
     robot_namespaces: List[str] = []
     for topic, _ in topics:
-        match_result = re.match(r'([\w\/]*)\/move_base\/goal', topic)
+        match_result = re.match(r"([\w\/]*)\/move_base\/goal", topic)
         if match_result:
             robot_namespaces.append(match_result.group(1))
     return robot_namespaces
@@ -269,7 +339,7 @@ def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> No
     Storage.waypoints[name] = TuplePose.from_sequence_tuple(pose)
 
 
-def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+def save_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
     """Save waypoints to file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     if not Storage.waypoints:
@@ -278,7 +348,7 @@ def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
 
     filepath = os.path.expanduser(filepath)
     try:
-        with open(filepath, 'w') as text_file:
+        with open(filepath, "w") as text_file:
             for waypoint_name, waypoint in Storage.waypoints.items():
                 # Note: Write tuple as list for nicer format.
                 text_file.write(f"'{waypoint_name}': {TuplePose.to_str(waypoint)}\n")
@@ -286,12 +356,12 @@ def save_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
         rospy.logerr(f"Error while writing to file '{filepath}'!")
 
 
-def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
+def load_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
     """Load waypoints from file, default: '~/.ros/robot_api_waypoints.yaml'."""
     _init_node()
     filepath = os.path.expanduser(filepath)
     try:
-        with open(filepath, 'r') as text_file:
+        with open(filepath, "r") as text_file:
             lines = [line.strip() for line in text_file.readlines() if line.strip()]
         # Parse and store line by line to preserve the order within the dict read.
         for line in lines:
@@ -299,7 +369,9 @@ def load_waypoints(filepath: str="~/.ros/robot_api_waypoints.yaml") -> None:
             assert isinstance(elements, dict), f"Invalid format in line: {line}"
             for name, pose in elements.items():
                 add_waypoint(name, pose)
-        rospy.loginfo(f"{_s(len(lines), 'waypoint')} loaded, now {len(Storage.waypoints)} in total.")
+        rospy.loginfo(
+            f"{_s(len(lines), 'waypoint')} loaded, now {len(Storage.waypoints)} in total."
+        )
     except Exception:
         rospy.logerr(f"Error while reading from file '{filepath}'!")
 

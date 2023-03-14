@@ -115,6 +115,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES robot_api
   CATKIN_DEPENDS
+    message_runtime
     actionlib_msgs
     geometry_msgs
     moveit_msgs

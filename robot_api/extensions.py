@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from enum import IntEnum
@@ -9,8 +8,18 @@ import rospy
 import rosparam
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
-from robot_api.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal, \
-    SetTask, SetTaskAction, SetTaskGoal, SetTaskResult, TaskParameter
+from robot_api.msg import (
+    MoveItMacroAction,
+    MoveItMacroGoal,
+    MoveItMacroResult,
+    FtObserverAction,
+    FtObserverGoal,
+    SetTask,
+    SetTaskAction,
+    SetTaskGoal,
+    SetTaskResult,
+    TaskParameter,
+)
 from robot_api.lib import ActionlibComponent, get_angle_between
 
 
@@ -38,15 +47,24 @@ class Arm(ActionlibComponent):
     ANGLE_TOLERANCE = 0.01
 
     def __init__(
-            self, namespace: str, connect_manipulation_on_init: bool,
-            group_name: str = 'arm') -> None:
-        super().__init__(namespace, {
-            self.TASK_SERVER_TOPIC_NAME: (SetTaskAction,),
-            self.MOVEIT_MACROS_TOPIC_NAME: (MoveItMacroAction,
-                f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
-                self.ROSLAUNCH_SLEEP_DURATION),
-            self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,)
-        }, connect_manipulation_on_init)
+        self,
+        namespace: str,
+        connect_manipulation_on_init: bool,
+        group_name: str = "arm",
+    ) -> None:
+        super().__init__(
+            namespace,
+            {
+                self.TASK_SERVER_TOPIC_NAME: (SetTaskAction,),
+                self.MOVEIT_MACROS_TOPIC_NAME: (
+                    MoveItMacroAction,
+                    f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
+                    self.ROSLAUNCH_SLEEP_DURATION,
+                ),
+                self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,),
+            },
+            connect_manipulation_on_init,
+        )
         self._pose_joint_values = self._get_pose_joint_values()
         self.pose_names = list(self._pose_joint_values.keys())
         self.group_name = group_name
@@ -56,7 +74,9 @@ class Arm(ActionlibComponent):
     def _parse(pattern: str, string: str) -> str:
         """Return first occurrence of pattern in string, or raise AssertionError if pattern cannot be found."""
         match_result = re.search(pattern, string)
-        assert match_result is not None, f"Error: Cannot parse '{string}' from '{pattern}'!"
+        assert (
+            match_result is not None
+        ), f"Error: Cannot parse '{string}' from '{pattern}'!"
         return match_result.group(1)
 
     def _init_moveit_commander(self):
@@ -71,7 +91,9 @@ class Arm(ActionlibComponent):
         params = rosparam.list_params(self._namespace)
         # If default param name exists, use it.
         if self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
-            param = rosparam.get_param(self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC)
+            param = rosparam.get_param(
+                self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC
+            )
         else:
             # Otherwise search for param which ends with '_semantic', according to planning_context.launch.
             for param in params:
@@ -81,59 +103,99 @@ class Arm(ActionlibComponent):
                 return {}
 
         # Collect all joint values from group states associated with group "arm".
-        group_tokens: List[Tuple[str, str]] = re.findall(r'<group_state\s+([\'\"\w\s=]+)>(.*?)</group_state>',
-            param, re.DOTALL)
+        group_tokens: List[Tuple[str, str]] = re.findall(
+            r"<group_state\s+([\'\"\w\s=]+)>(.*?)</group_state>", param, re.DOTALL
+        )
         return {
-            self._parse(r'name=[\'\"](\w+)[\'\"]', token): {
-                self._parse(r'name=[\'\"](.+?)[\'\"]', line): float(self._parse(r'value=[\'\"](.+?)[\'\"]', line))
-                for line in content.split('\n') if line.strip().startswith("<joint ")
+            self._parse(r"name=[\'\"](\w+)[\'\"]", token): {
+                self._parse(r"name=[\'\"](.+?)[\'\"]", line): float(
+                    self._parse(r"value=[\'\"](.+?)[\'\"]", line)
+                )
+                for line in content.split("\n")
+                if line.strip().startswith("<joint ")
             }
-            for token, content in group_tokens if "group='arm'" in token or 'group="arm"' in token
+            for token, content in group_tokens
+            if "group='arm'" in token or 'group="arm"' in token
         }
 
-    def _call_moveit_macro(self, goal_type: str, goal_name: str,
-            done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
+    def _call_moveit_macro(
+        self,
+        goal_type: str,
+        goal_name: str,
+        done_cb: Optional[Callable[[int, MoveItMacroResult], Any]] = None,
+    ) -> Any:
         """
         Call MoveItMacro with goal_type and goal_name. Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
-            rospy.logerr("Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?")
+            rospy.logerr(
+                "Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?"
+            )
             return None
 
         goal = MoveItMacroGoal(type=goal_type, name=goal_name)
-        return self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
-            else self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal(goal, done_cb)
+        return (
+            self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal)
+            if done_cb is None
+            else self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal(
+                goal, done_cb
+            )
+        )
 
-    def _call_task_server(self, task_stage: int, parameter_identifier: str, parameter_data: str,
-            done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
+    def _call_task_server(
+        self,
+        task_stage: int,
+        parameter_identifier: str,
+        parameter_data: str,
+        done_cb: Optional[Callable[[int, SetTaskResult], Any]] = None,
+    ) -> Any:
         """
         Call Task Server with a goal based on the given task and parameter information. Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         if not self._connect(self.TASK_SERVER_TOPIC_NAME):
-            rospy.logerr("Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?")
+            rospy.logerr(
+                "Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?"
+            )
             return None
 
-        task_parameter = TaskParameter(identifier=parameter_identifier, data=parameter_data)
+        task_parameter = TaskParameter(
+            identifier=parameter_identifier, data=parameter_data
+        )
         sub_task = SetTask(stage=task_stage, task_parameters=[task_parameter])
         goal = SetTaskGoal(modification=[sub_task])
-        return self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal) if done_cb is None \
-            else self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal(goal, done_cb)
+        return (
+            self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal)
+            if done_cb is None
+            else self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal(
+                goal, done_cb
+            )
+        )
 
-    def execute(self, action_name: str, done_cb: Optional[Callable[[int, MoveItMacroResult], Any]]=None) -> Any:
+    def execute(
+        self,
+        action_name: str,
+        done_cb: Optional[Callable[[int, MoveItMacroResult], Any]] = None,
+    ) -> Any:
         """
         Execute moveit_macro named action_name. Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self._call_moveit_macro("function", action_name, done_cb)
 
-    def move(self, pose_name: str, done_cb: Optional[Callable[[int, SetTaskResult], Any]]=None) -> Any:
+    def move(
+        self,
+        pose_name: str,
+        done_cb: Optional[Callable[[int, SetTaskResult], Any]] = None,
+    ) -> Any:
         """
         Move arm to pose named pose_name. Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
-        return self._call_task_server(TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb)
+        return self._call_task_server(
+            TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb
+        )
 
     def move_to_position(self, pose: Pose) -> None:
         """
@@ -144,14 +206,14 @@ class Arm(ActionlibComponent):
         self.move_group.set_pose_target(pose)
         success = self.move_group.go(wait=True)
         if not success:
-            rospy.logerr('moving to goal pose not successful!')
+            rospy.logerr("moving to goal pose not successful!")
         # Calling `stop()` ensures that there is no residual movement
         self.move_group.stop()
         self.move_group.clear_pose_targets()
 
     def get_pose(self):
         """
-        Get pose of endeffector. Use in combination with move_to_position 
+        Get pose of endeffector. Use in combination with move_to_position
         to reach relative positions.
         """
         if not self._moveit_init:
@@ -171,9 +233,13 @@ class Arm(ActionlibComponent):
         # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
         return int(action_client.get_state()) == 3
 
-    def get_pose_name(self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float]=None) -> Optional[str]:
+    def get_pose_name(
+        self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float] = None
+    ) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""
-        joint_state: JointState = rospy.wait_for_message(self._namespace + "joint_states", JointState, timeout)
+        joint_state: JointState = rospy.wait_for_message(
+            self._namespace + "joint_states", JointState, timeout
+        )
         for pose_name, joints in self._pose_joint_values.items():
             for joint_name, value in joints.items():
                 if joint_name not in joint_state.name:

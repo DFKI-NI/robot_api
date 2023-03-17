@@ -158,7 +158,7 @@ class Arm(ActionlibComponent):
         """
         return self._call_moveit_macro("target", pose_name, done_cb)
 
-    def move_to_position(self, pose: Pose) -> None:
+    def move_to_pose(self, pose: Pose) -> None:
         """
         Move arm endeffector to pose using the MoveIt Commander.
         """

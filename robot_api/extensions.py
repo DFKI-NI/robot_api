@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from enum import IntEnum
-import sys
-import moveit_commander
 import re
+import sys
 import rospy
 import rosparam
+import moveit_commander
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 from robot_api.msg import (
@@ -14,11 +14,6 @@ from robot_api.msg import (
     MoveItMacroResult,
     FtObserverAction,
     FtObserverGoal,
-    SetTask,
-    SetTaskAction,
-    SetTaskGoal,
-    SetTaskResult,
-    TaskParameter,
 )
 from robot_api.lib import ActionlibComponent, get_angle_between
 
@@ -41,7 +36,6 @@ class TaskStage(IntEnum):
 class Arm(ActionlibComponent):
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
-    TASK_SERVER_TOPIC_NAME = "task_server/set_task"
     MOVEIT_MACROS_TOPIC_NAME = "moveit_macros"
     FT_OBSERVER_TOPIC_NAME = "ft_observer"
     ANGLE_TOLERANCE = 0.01
@@ -55,7 +49,6 @@ class Arm(ActionlibComponent):
         super().__init__(
             namespace,
             {
-                self.TASK_SERVER_TOPIC_NAME: (SetTaskAction,),
                 self.MOVEIT_MACROS_TOPIC_NAME: (
                     MoveItMacroAction,
                     f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
@@ -143,36 +136,6 @@ class Arm(ActionlibComponent):
             )
         )
 
-    def _call_task_server(
-        self,
-        task_stage: int,
-        parameter_identifier: str,
-        parameter_data: str,
-        done_cb: Optional[Callable[[int, SetTaskResult], Any]] = None,
-    ) -> Any:
-        """
-        Call Task Server with a goal based on the given task and parameter information. Return the moveit_macro action server's result.
-        Optionally, call done_cb() afterwards if given.
-        """
-        if not self._connect(self.TASK_SERVER_TOPIC_NAME):
-            rospy.logerr(
-                "Did you 'roslaunch mobipick_task_server mobipick_task_server.launch'?"
-            )
-            return None
-
-        task_parameter = TaskParameter(
-            identifier=parameter_identifier, data=parameter_data
-        )
-        sub_task = SetTask(stage=task_stage, task_parameters=[task_parameter])
-        goal = SetTaskGoal(modification=[sub_task])
-        return (
-            self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal_and_wait(goal)
-            if done_cb is None
-            else self._action_clients[self.TASK_SERVER_TOPIC_NAME].send_goal(
-                goal, done_cb
-            )
-        )
-
     def execute(
         self,
         action_name: str,
@@ -187,15 +150,13 @@ class Arm(ActionlibComponent):
     def move(
         self,
         pose_name: str,
-        done_cb: Optional[Callable[[int, SetTaskResult], Any]] = None,
+        done_cb: Optional[Callable[[int, MoveItMacroResult], Any]] = None,
     ) -> Any:
         """
         Move arm to pose named pose_name. Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
-        return self._call_task_server(
-            TaskStage.MOVE_TO_NAMED_POSE, "pose_name", pose_name, done_cb
-        )
+        return self._call_moveit_macro("target", pose_name, done_cb)
 
     def move_to_position(self, pose: Pose) -> None:
         """

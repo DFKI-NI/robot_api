@@ -5,7 +5,7 @@ import rospy
 import tf
 from geometry_msgs.msg import Pose
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
-from robot_api.extensions import Arm
+from robot_api.extensions import Arm, Gripper
 from robot_api.excepthook import Excepthook
 from robot_api.lib import (
     ActionlibComponent,
@@ -386,3 +386,4 @@ class Robot:
         self.namespace = namespace
         self.base = Base(namespace, connect_navigation_on_init)
         self.arm = Arm(namespace, connect_manipulation_on_init)
+        self.gripper = Gripper(namespace, connect_manipulation_on_init)

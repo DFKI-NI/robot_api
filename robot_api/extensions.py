@@ -8,6 +8,7 @@ import rosparam
 import moveit_commander
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
+from control_msgs.msg import GripperCommandAction, GripperCommandGoal
 from robot_api.msg import (
     MoveItMacroAction,
     MoveItMacroGoal,
@@ -211,3 +212,28 @@ class Arm(ActionlibComponent):
             else:
                 return pose_name
         return None
+
+
+class Gripper(ActionlibComponent):
+    def __init__(
+            self, namespace: str,
+            connect_manipulation_on_init: bool = False):
+        super().__init__(
+            namespace,
+            # create an action client for the gripper
+            {'gripper_hw': (GripperCommandAction,)},
+            connect_manipulation_on_init)
+
+    def open(self):
+        self.send_goal_and_wait(100, 0.1)
+
+    def close(self):
+        self.send_goal_and_wait(50, 0.0)
+
+    def send_goal_and_wait(self, max_effort, position):
+        if 'gripper_hw' not in self._action_clients:
+            self._connect('gripper_hw')
+        goal = GripperCommandGoal()
+        goal.command.max_effort = max_effort
+        goal.command.position = position
+        self._action_clients['gripper_hw'].send_goal_and_wait(goal)

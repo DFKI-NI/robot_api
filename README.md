@@ -23,8 +23,7 @@ afterwards.
 ## Demo
 
 Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick)
-and [mobipick_task_server](https://git.ni.dfki.de/mobipick/mobipick_task_server)
-repositories installed and compiled, first start up a ROS environment, e.g.:
+repository installed and compiled, first start up a ROS environment, e.g.:
 
 ```
 roslaunch mobipick_gazebo mobipick_moelk.launch
@@ -36,10 +35,13 @@ roslaunch mobipick_task_server mobipick_task_server.launch
 ```
 
 To use this `robot_api`, just install it as described above and use a `python`
-console anywhere:
+console anywhere (except inside the top level `robot_api` folder because trying
+to import it would then only import the subfolder with the same name inside):
 
 ```
 import robot_api
+# Print the namespaces of available robots.
+robot_api.find_robot_namespaces()
 # Get a Robot object using the robot's namespace.
 mobipick = robot_api.Robot("mobipick")
 # Get the robot's 2D pose using localization.
@@ -53,7 +55,7 @@ mobipick.base.move(21.0, 7.0, 3.141592)
 ## Discussion
 
 The idea is not new at all. See for example Facebook's
-[PyRobot](https://pyrobot.org/) or our repository of
+[PyRobot](https://pyrobot.org/) or our (internal) repository of
 [high_level_robot_api](https://git.ni.dfki.de/acting/high_level_robot_api/-/tree/noetic/src/high_level_robot_api).
 A few design decisions merit an own software package:
 
@@ -61,8 +63,7 @@ A few design decisions merit an own software package:
 
 When defining an interface, you might as well make it elaborate, even when it's
 Python. You will notice the difference when using an IDE with code completion or
-static type checking. `*args` and `**kwargs` are universal parameters but might
-require more of trial and error from the user than necessary.
+static type checking.
 
 ### ROS wrapper
 
@@ -71,7 +72,7 @@ initializing a ROS node to use the `robot_api`. Beneath it, ROS is used indeed
 since a running ROS environment is a prerequisite in the first place. In the
 future, ROS 2 shall be supported as well. Under these circumstances, it makes
 sense for `robot_api` to accept ROS message types as parameters, even if the
-user is not required to know about ROS. A detailed example is `Base.move()`,
+user does not need to know about ROS. A detailed example is `Base.move()`,
 which accepts several variations of ROS and non-ROS parameters.
 
 ### Class structure
@@ -86,9 +87,8 @@ at this point is still work in progress.
 
 ## Contribution
 
-Your contribution is very welcome. Much robot specific functionality is still
-missing for many of our robots. Please develop on the `develop` branch or a
-sub-branch of it, and use merge requests to merge stable implementation back.
+Your contributions and pull requests are very welcome. Many standard robot
+skills are yet to be supported. We suggest the following structure:
 
 ### Actions
 
@@ -102,10 +102,7 @@ demonstrates a sample implementation of this concept.
 
 Feel free to add further extensions as attributes to the `Robot` class but keep
 in mind that these will exist then for all robots, even if they might not have
-the respective components. For example, `Base.arm` is such an extension. A
-gripper should not be an extension of `Base` unless we one day actually have a
-gripper on a robot's base without an arm. It could be an extension of `Base.arm`
-if you see benefits in encapsulating it further.
+the respective components. See `Base.arm` as an example of such an extension.
 
 ### Connections
 
@@ -113,4 +110,6 @@ By default, `robot_api` connects components lazily on demand. This means, for
 example, `actionlib` clients connect to their server when they execute something
 for the first time. Such mechnamisms are integral parts of the Robot API in
 order to offer convenience to the user. The user does not need to know about
-`actionlib` at all.
+`actionlib` at all. Even `rospy.init_node()` is called when needed, i.e., when
+a ROS function is about to executed but no ROS node is yet present in the
+current process.

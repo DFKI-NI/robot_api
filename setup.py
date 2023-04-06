@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="robot_api",
-    version="1.9.0",
+    version="1.9.1",
     description="A pre- and concise Python API to control robots with simple commands.",
     author="Alexander Sung",
     author_email="Alexander.Sung@dfki.de",

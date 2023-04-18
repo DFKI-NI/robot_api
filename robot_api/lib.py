@@ -155,7 +155,8 @@ class Storage:
 
 class ActionlibComponent:
     """
-    Robot component, which automatically connects to ROS actionlib servers given in server_specs.
+    Robot component, which automatically connects to ROS actionlib servers given in
+     server_specs.
     Unless you connect_on_init, connection will be established lazily on first usage.
     """
 
@@ -222,7 +223,10 @@ class ActionlibComponent:
         return True
 
     def get_result(self, server_name: Optional[str] = None) -> Any:
-        """Return result from action client connected to server_name. Use the last connected server_name by default."""
+        """
+        Return result from action client connected to server_name.
+         Use the last connected server_name by default.
+        """
         if server_name is None:
             server_name = self._last_server_name
             if server_name is None:
@@ -302,7 +306,8 @@ def get_pose_name(
         _, _, check_yaw = tf.transformations.euler_from_quaternion(check_orientation)
         xy_distance = math.dist(position, check_position)
         yaw_distance = abs(get_angle_between(yaw, check_yaw))
-        # Continue choosing closer positions, or in case of equal xy_distance closer orientations.
+        # Continue choosing closer positions, or in case of equal xy_distance closer
+        #  orientations.
         if (
             xy_distance <= xy_tolerance
             and yaw_distance <= yaw_tolerance
@@ -310,7 +315,8 @@ def get_pose_name(
         ):
             pose_name = check_name
             xy_tolerance = xy_distance
-            # Note: A closer position has precedence and will be chosen regardless of orientation.
+            # Note: A closer position has precedence and will be chosen regardless of
+            #  orientation.
             min_yaw_distance = yaw_distance
     return pose_name
 

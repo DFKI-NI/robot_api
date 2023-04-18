@@ -21,7 +21,8 @@ class Base(ActionlibComponent):
     """Representation of a robot's base with navigation capabilities."""
 
     MOVE_BASE_TOPIC_NAME = "move_base"
-    # Note: Cannot use move_base goal tolerances because movement by move_base does not guarantee its thresholds.
+    # Note: Cannot use move_base goal tolerances because movement by move_base does not
+    #  guarantee its thresholds.
     XY_TOLERANCE = 0.2
     YAW_TOLERANCE = 0.1
 
@@ -84,7 +85,10 @@ class Base(ActionlibComponent):
         yaw_tolerance=YAW_TOLERANCE,
         timeout: float = 1.0,
     ) -> Optional[str]:
-        """Return the name of the pose in poses closest to the robot base within the given tolerances."""
+        """
+        Return the name of the pose in poses closest to the robot base within the given
+         tolerances.
+        """
         if not poses:
             rospy.logwarn("No poses given to compare to.")
             return None
@@ -138,7 +142,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to pose in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         goal = MoveBaseGoal()
@@ -155,7 +160,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to pose in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self.move_to_pose(TuplePose.to_pose(pose), frame_id, timeout, done_cb)
@@ -169,7 +175,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to position and orientation in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to position and orientation in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self.move_to_pose(
@@ -189,7 +196,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to position (x, y, z) and orientation (roll, pitch, yaw) in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to given 6D pose in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self.move_to_pose(
@@ -209,7 +217,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to waypoint by name in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to waypoint by name in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         if name not in Storage.waypoints.keys():
@@ -251,7 +260,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to pose in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to pose in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         ...
@@ -266,7 +276,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to position and orientation in frame_id's map with timeout. Return the move_base action server's result.
+        Move robot to position and orientation in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         ...
@@ -282,7 +293,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to pose given by x, y, and yaw in radians. Return the move_base action server's result.
+        Move robot to pose given by x, y, and yaw in radians.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         ...
@@ -301,7 +313,8 @@ class Base(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
     ) -> Any:
         """
-        Move robot to given 6D pose. Return the move_base action server's result.
+        Move robot to given 6D pose in frame_id's map with timeout.
+         Return the move_base action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         ...

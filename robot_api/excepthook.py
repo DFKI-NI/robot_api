@@ -24,7 +24,10 @@ class Excepthook:
     def expect(
         exception: BaseException, args: Optional[Sequence[str]] = None
     ) -> BaseException:
-        """Suppress traceback if exception is raised as expected. Otherwise, use sys.excepthook by default."""
+        """
+        Suppress traceback if exception is raised as expected.
+         Otherwise, use sys.excepthook by default.
+        """
         if args:
             exception.args = tuple(args)
         Excepthook._expected_exception = exception

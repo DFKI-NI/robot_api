@@ -52,7 +52,8 @@ class Arm(ActionlibComponent):
             {
                 self.MOVEIT_MACROS_TOPIC_NAME: (
                     MoveItMacroAction,
-                    f"roslaunch robot_api moveit_macros.launch namespace:='{namespace.strip('/')}'",
+                    f"roslaunch robot_api moveit_macros.launch"
+                    " namespace:='{namespace.strip('/')}'",
                     self.ROSLAUNCH_SLEEP_DURATION,
                 ),
                 self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,),
@@ -66,7 +67,10 @@ class Arm(ActionlibComponent):
 
     @staticmethod
     def _parse(pattern: str, string: str) -> str:
-        """Return first occurrence of pattern in string, or raise AssertionError if pattern cannot be found."""
+        """
+        Return first occurrence of pattern in string,
+         or raise AssertionError if pattern cannot be found.
+        """
         match_result = re.search(pattern, string)
         assert (
             match_result is not None
@@ -89,7 +93,8 @@ class Arm(ActionlibComponent):
                 self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC
             )
         else:
-            # Otherwise search for param which ends with '_semantic', according to planning_context.launch.
+            # Otherwise search for param which ends with '_semantic',
+            #  according to planning_context.launch.
             for param in params:
                 if param.endswith("_semantic"):
                     break
@@ -119,12 +124,14 @@ class Arm(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveItMacroResult], Any]] = None,
     ) -> Any:
         """
-        Call MoveItMacro with goal_type and goal_name. Return the moveit_macro action server's result.
+        Call MoveItMacro with goal_type and goal_name.
+         Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
             rospy.logerr(
-                "Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch' with correct 'namespace'?"
+                "Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch'"
+                " with correct 'namespace'?"
             )
             return None
 
@@ -143,7 +150,8 @@ class Arm(ActionlibComponent):
         done_cb: Optional[Callable[[int, MoveItMacroResult], Any]] = None,
     ) -> Any:
         """
-        Execute moveit_macro named action_name. Return the moveit_macro action server's result.
+        Execute moveit_macro named action_name.
+         Return the moveit_macro action server's result.
         Optionally, call done_cb() afterwards if given.
         """
         return self._call_moveit_macro("function", action_name, done_cb)
@@ -183,7 +191,10 @@ class Arm(ActionlibComponent):
         return self.move_group.get_current_pose().pose
 
     def observe_force_torque(self, threshold: float, timeout: float) -> bool:
-        """Call force torque observer with given threshold and timeout. Return whether successful."""
+        """
+        Call force torque observer with given threshold and timeout.
+         Return whether successful.
+        """
         if not self._connect(self.FT_OBSERVER_TOPIC_NAME):
             rospy.logerr("Did you launch the ft_observer node?")
             return False
@@ -215,14 +226,13 @@ class Arm(ActionlibComponent):
 
 
 class Gripper(ActionlibComponent):
-    def __init__(
-            self, namespace: str,
-            connect_manipulation_on_init: bool = False):
+    def __init__(self, namespace: str, connect_manipulation_on_init: bool = False):
         super().__init__(
             namespace,
             # create an action client for the gripper
-            {'gripper_hw': (GripperCommandAction,)},
-            connect_manipulation_on_init)
+            {"gripper_hw": (GripperCommandAction,)},
+            connect_manipulation_on_init,
+        )
 
     def open(self):
         self.send_goal_and_wait(100, 0.1)
@@ -231,9 +241,9 @@ class Gripper(ActionlibComponent):
         self.send_goal_and_wait(50, 0.0)
 
     def send_goal_and_wait(self, max_effort, position):
-        if 'gripper_hw' not in self._action_clients:
-            self._connect('gripper_hw')
+        if "gripper_hw" not in self._action_clients:
+            self._connect("gripper_hw")
         goal = GripperCommandGoal()
         goal.command.max_effort = max_effort
         goal.command.position = position
-        self._action_clients['gripper_hw'].send_goal_and_wait(goal)
+        self._action_clients["gripper_hw"].send_goal_and_wait(goal)

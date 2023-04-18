@@ -329,7 +329,7 @@ class Base(ActionlibComponent):
     ) -> Any:
         goal: Optional[MoveBaseGoal] = kwargs.get("goal", get_at(args, 0, MoveBaseGoal))
         pose: Optional[
-            Union[Pose, Tuple[Sequence[float], Sequence[float]]]
+            Union[Pose, Tuple[Sequence[Union[float, int]], Sequence[Union[float, int]]]]
         ] = kwargs.get(
             "pose",
             get_at(
@@ -341,24 +341,24 @@ class Base(ActionlibComponent):
                 ],
             ),
         )
-        position: Optional[Sequence[float]] = kwargs.get(
+        position: Optional[Sequence[Union[float, int]]] = kwargs.get(
             "position", get_at(args, 0, Sequence[Union[float, int]])
         )
-        orientation: Optional[Sequence[float]] = kwargs.get(
+        orientation: Optional[Sequence[Union[float, int]]] = kwargs.get(
             "orientation", get_at(args, 1, Sequence[Union[float, int]])
         )
-        x: float = kwargs.get("x", get_at(args, 0, Union[float, int]))
-        y: float = kwargs.get("y", get_at(args, 1, Union[float, int]))
-        z: float = kwargs.get(
+        x: Union[float, int] = kwargs.get("x", get_at(args, 0, Union[float, int]))
+        y: Union[float, int] = kwargs.get("y", get_at(args, 1, Union[float, int]))
+        z: Union[float, int] = kwargs.get(
             "z", get_at(args, 2, Union[float, int]) if len(args) > 3 else 0.0
         )
-        roll: float = kwargs.get(
+        roll: Union[float, int] = kwargs.get(
             "roll", get_at(args, 3, Union[float, int]) if len(args) >= 4 else 0.0
         )
-        pitch: float = kwargs.get(
+        pitch: Union[float, int] = kwargs.get(
             "pitch", get_at(args, 4, Union[float, int]) if len(args) >= 5 else 0.0
         )
-        yaw: float = kwargs.get(
+        yaw: Union[float, int] = kwargs.get(
             "yaw", get_at(args, 5 if len(args) >= 6 else 2, Union[float, int])
         )
         if goal is None:

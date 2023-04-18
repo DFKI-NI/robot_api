@@ -47,8 +47,11 @@ def test_is_instance() -> None:
 def test_get_at() -> None:
     args = [0, "one", (2, 3), {4: 5}]
     assert get_at(args, 0, int) == 0
+    assert get_at(args, 0, float) is None
     assert get_at(args, 1, int) is None
     assert get_at(args, 2, Tuple[int, ...]) == (2, 3)
+    assert get_at(args, 2, Tuple[Union[float, int], ...]) == (2, 3)
     assert get_at(args, 3, dict) == {4: 5}
+    assert get_at(args, 3, Dict[Union[float, int], Union[float, int]]) == {4: 5}
     assert get_at(0, 1, 2) is None
     assert get_at("0", 0, str) == "0"

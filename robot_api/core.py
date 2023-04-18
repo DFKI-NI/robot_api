@@ -332,24 +332,35 @@ class Base(ActionlibComponent):
             Union[Pose, Tuple[Sequence[float], Sequence[float]]]
         ] = kwargs.get(
             "pose",
-            get_at(args, 0, Union[Pose, Tuple[Sequence[float], Sequence[float]]]),
+            get_at(
+                args,
+                0,
+                Union[
+                    Pose,
+                    Tuple[Sequence[Union[float, int]], Sequence[Union[float, int]]],
+                ],
+            ),
         )
         position: Optional[Sequence[float]] = kwargs.get(
-            "position", get_at(args, 0, Sequence[float])
+            "position", get_at(args, 0, Sequence[Union[float, int]])
         )
         orientation: Optional[Sequence[float]] = kwargs.get(
-            "orientation", get_at(args, 1, Sequence[float])
+            "orientation", get_at(args, 1, Sequence[Union[float, int]])
         )
-        x: float = kwargs.get("x", get_at(args, 0, float))
-        y: float = kwargs.get("y", get_at(args, 1, float))
-        z: float = kwargs.get("z", get_at(args, 2, float) if len(args) > 3 else 0.0)
+        x: float = kwargs.get("x", get_at(args, 0, Union[float, int]))
+        y: float = kwargs.get("y", get_at(args, 1, Union[float, int]))
+        z: float = kwargs.get(
+            "z", get_at(args, 2, Union[float, int]) if len(args) > 3 else 0.0
+        )
         roll: float = kwargs.get(
-            "roll", get_at(args, 3, float) if len(args) >= 4 else 0.0
+            "roll", get_at(args, 3, Union[float, int]) if len(args) >= 4 else 0.0
         )
         pitch: float = kwargs.get(
-            "pitch", get_at(args, 4, float) if len(args) >= 5 else 0.0
+            "pitch", get_at(args, 4, Union[float, int]) if len(args) >= 5 else 0.0
         )
-        yaw: float = kwargs.get("yaw", get_at(args, 5 if len(args) >= 6 else 2, float))
+        yaw: float = kwargs.get(
+            "yaw", get_at(args, 5 if len(args) >= 6 else 2, Union[float, int])
+        )
         if goal is None:
             if pose is None:
                 if not position or not orientation:

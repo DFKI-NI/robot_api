@@ -52,8 +52,8 @@ class Arm(ActionlibComponent):
             {
                 self.MOVEIT_MACROS_TOPIC_NAME: (
                     MoveItMacroAction,
-                    f"roslaunch robot_api moveit_macros.launch"
-                    " namespace:='{namespace.strip('/')}'",
+                    "roslaunch robot_api moveit_macros.launch"
+                    f" namespace:='{namespace.strip('/')}'",
                     self.ROSLAUNCH_SLEEP_DURATION,
                 ),
                 self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,),

@@ -9,7 +9,7 @@ A user shall have a simple and well defined (typed) interface to call to for the
 execution of robot actions. The goal is to enable control of our robots
 independently from their types and without knowledge of their operation systems.
 
-On developer side, care is to be taken of the genericity of these actions by
+On the developer side, please consider the genericity of these actions when
 providing robot specific implementations towards this API. Special attention
 is necessary for capabilities which are not available on all robots. In these
 cases, the execution shall fail gracefully and not crash the system.
@@ -31,12 +31,12 @@ rosservice call /gazebo/unpause_physics   # or click the "start" button in the G
 roslaunch mir_gazebo fake_localization.launch __ns:="mobipick" odom_frame_id:="mobipick/odom" base_frame_id:="mobipick/base_footprint"
 roslaunch mir_navigation start_planner.launch map_file:=$(rospack find pbr_maps)/maps/moelk/pbr_robot_lab.yaml prefix:="mobipick/"
 roslaunch mobipick_moveit_config moveit_planning_execution.launch use_pointcloud:=true simulation:=true
-roslaunch mobipick_task_server mobipick_task_server.launch
 ```
 
 To use this `robot_api`, just install it as described above and use a `python`
 console anywhere (except inside the top level `robot_api` folder because trying
-to import it would then only import the subfolder with the same name inside):
+to import it would then only import the subfolder with the same name inside
+and result in a `ModuleNotFoundError: No module named 'robot_api.msg'`):
 
 ```
 import robot_api
@@ -93,7 +93,7 @@ skills are yet to be supported. We suggest the following structure:
 ### Actions
 
 Action can be implemented in any form you want. Preferably, each action has only
-one specific purpose. Convenience methods are available as class methods of
+one specific purpose. Convenience methods should be available as class methods of
 `Base` or extensions, for example, and they delegate action execution to
 specific implementations based on the parameter values. `Base.move()`
 demonstrates a sample implementation of this concept.
@@ -107,7 +107,7 @@ the respective components. See `Base.arm` as an example of such an extension.
 ### Connections
 
 By default, `robot_api` connects components lazily on demand. This means, for
-example, `actionlib` clients connect to their server when they execute something
+example, `actionlib` clients connect to their servers when they execute something
 for the first time. Such mechnamisms are integral parts of the Robot API in
 order to offer convenience to the user. The user does not need to know about
 `actionlib` at all. Even `rospy.init_node()` is called when needed, i.e., when

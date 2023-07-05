@@ -126,7 +126,7 @@ class Arm(ActionlibComponent):
         """
         Call MoveItMacro with goal_type and goal_name.
          Return the moveit_macro action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
             rospy.logerr(
@@ -152,7 +152,7 @@ class Arm(ActionlibComponent):
         """
         Execute moveit_macro named action_name.
          Return the moveit_macro action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         return self._call_moveit_macro("function", action_name, done_cb)
 
@@ -163,7 +163,7 @@ class Arm(ActionlibComponent):
     ) -> Any:
         """
         Move arm to pose named pose_name. Return the moveit_macro action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         return self._call_moveit_macro("target", pose_name, done_cb)
 

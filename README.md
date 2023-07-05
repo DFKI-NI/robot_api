@@ -7,10 +7,10 @@ A pre- and concise Python API to control robots with simple commands.
 The Robot API is an interface layer between an executor and ROS robot control.
 A user shall have a simple and well defined (typed) interface to call to for the
 execution of robot actions. The goal is to enable control of our robots
-independently from their types and without knowledge of their operation systems.
+independently from their types and without knowledge of their operating systems.
 
 On the developer side, please consider the genericity of these actions when
-providing robot specific implementations towards this API. Special attention
+providing robot specific implementations towards this API. Special care
 is necessary for capabilities which are not available on all robots. In these
 cases, the execution shall fail gracefully and not crash the system.
 

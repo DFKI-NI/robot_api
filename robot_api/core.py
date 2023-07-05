@@ -105,7 +105,7 @@ class Base(ActionlibComponent):
     ) -> Any:
         """
         Move robot to goal with timeout. Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         if not self._connect(Base.MOVE_BASE_TOPIC_NAME):
             rospy.logerr("Did you launch the move_base node?")
@@ -144,7 +144,7 @@ class Base(ActionlibComponent):
         """
         Move robot to pose in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = frame_id
@@ -162,7 +162,7 @@ class Base(ActionlibComponent):
         """
         Move robot to pose in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         return self.move_to_pose(TuplePose.to_pose(pose), frame_id, timeout, done_cb)
 
@@ -177,7 +177,7 @@ class Base(ActionlibComponent):
         """
         Move robot to position and orientation in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         return self.move_to_pose(
             TuplePose.to_pose((position, orientation)), frame_id, timeout, done_cb
@@ -198,7 +198,7 @@ class Base(ActionlibComponent):
         """
         Move robot to given 6D pose in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         return self.move_to_pose(
             TuplePose.to_pose(
@@ -219,7 +219,7 @@ class Base(ActionlibComponent):
         """
         Move robot to waypoint by name in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         if name not in Storage.waypoints.keys():
             if Storage.waypoints:
@@ -247,7 +247,7 @@ class Base(ActionlibComponent):
     ) -> Any:
         """
         Move robot to goal with timeout. Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         ...
 
@@ -262,7 +262,7 @@ class Base(ActionlibComponent):
         """
         Move robot to pose in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         ...
 
@@ -278,7 +278,7 @@ class Base(ActionlibComponent):
         """
         Move robot to position and orientation in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         ...
 
@@ -295,7 +295,7 @@ class Base(ActionlibComponent):
         """
         Move robot to pose given by x, y, and yaw in radians.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         ...
 
@@ -315,7 +315,7 @@ class Base(ActionlibComponent):
         """
         Move robot to given 6D pose in frame_id's map with timeout.
          Return the move_base action server's result.
-        Optionally, call done_cb() afterwards if given.
+        If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
         ...
 

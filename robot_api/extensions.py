@@ -167,7 +167,7 @@ class Arm(ActionlibComponent):
         """
         return self._call_moveit_macro("target", pose_name, done_cb)
 
-    def move_to_pose(self, pose: Pose) -> None:
+    def move_to_pose(self, pose: Pose) -> bool:
         """
         Move arm endeffector to pose using the MoveIt Commander.
         """
@@ -180,6 +180,7 @@ class Arm(ActionlibComponent):
         # Calling `stop()` ensures that there is no residual movement
         self.move_group.stop()
         self.move_group.clear_pose_targets()
+        return success
 
     def get_pose(self):
         """

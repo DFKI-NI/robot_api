@@ -25,7 +25,7 @@ afterwards.
 Assuming you have the [mobipick](https://git.ni.dfki.de/mobipick/mobipick)
 repository installed and compiled, first start up a ROS environment, e.g.:
 
-```
+```bash
 roslaunch mobipick_gazebo mobipick_moelk.launch
 rosservice call /gazebo/unpause_physics   # or click the "start" button in the Gazebo GUI
 roslaunch mir_gazebo fake_localization.launch __ns:="mobipick" odom_frame_id:="mobipick/odom" base_frame_id:="mobipick/base_footprint"
@@ -38,7 +38,7 @@ console anywhere (except inside the top level `robot_api` folder because trying
 to import it would then only import the subfolder with the same name inside
 and result in a `ModuleNotFoundError: No module named 'robot_api.msg'`):
 
-```
+```python
 import robot_api
 # Print the namespaces of available robots.
 robot_api.find_robot_namespaces()

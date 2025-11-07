@@ -1,5 +1,5 @@
 try:
-    import robot_api.msg
+    import robot_api_msgs.action
 except ModuleNotFoundError:
     print(
         "Error: Trying to import robot_api without its ROS environment does not work."
@@ -23,5 +23,5 @@ from robot_api.lib import (
     print_waypoints,
 )
 from robot_api.core import Robot, Base
-from robot_api.extensions import Arm
+#from robot_api.extensions import Arm
 from robot_api.excepthook import Excepthook

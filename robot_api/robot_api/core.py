@@ -1,38 +1,50 @@
 from __future__ import annotations
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union, overload
+import os
 import time
-import rospy
-import tf
 from geometry_msgs.msg import Pose
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseResult
-from robot_api.extensions import Arm, Gripper
+#from robot_api.extensions import Arm, Gripper
 from robot_api.excepthook import Excepthook
 from robot_api.lib import (
-    ActionlibComponent,
     Storage,
     TuplePose,
-    _init_node,
     get_at,
     get_pose_name,
 )
+from robot_api.ros_wrapper import get_ros_wrapper
+
+try:
+    ros_version = os.environ["ROS_VERSION"]
+    if ros_version == "1":
+        from tf import LookupException, ExtrapolationException
+        from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+    elif ros_version == "2":
+        from tf2_ros import LookupException, ExtrapolationException
+        from nav2_msgs.action import NavigateToPose as MoveBaseAction
+        MoveBaseGoal = MoveBaseAction.Goal
+    else:
+        raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
+except KeyError:
+    raise ImportError("ROS_VERSION environment variable not set. Please source your ROS setup file.")
 
 
-class Base(ActionlibComponent):
+_ros_wrapper = get_ros_wrapper()
+
+
+class Base():
     """Representation of a robot's base with navigation capabilities."""
 
-    MOVE_BASE_TOPIC_NAME = "move_base"
     # Note: Cannot use move_base goal tolerances because movement by move_base does not
     #  guarantee its thresholds.
     XY_TOLERANCE = 0.2
     YAW_TOLERANCE = 0.1
 
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
-        super().__init__(
+        _ros_wrapper.init_action_server(
             namespace,
-            {self.MOVE_BASE_TOPIC_NAME: (MoveBaseAction,)},
+            {_ros_wrapper.get_move_base_topic_name(): (MoveBaseAction,)},
             connect_navigation_on_init,
         )
-        self._tf_listener = tf.TransformListener()
 
     def get_pose(
         self,
@@ -42,23 +54,23 @@ class Base(ActionlibComponent):
     ) -> Tuple[Sequence[float], Sequence[float]]:
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
-            pose = self._tf_listener.lookupTransform(
-                reference_frame, self._namespace + robot_frame, rospy.Time(0)
+            pose = _ros_wrapper.lookup_transform(
+                reference_frame, self._namespace + robot_frame, 0
             )
-        except (tf.LookupException, tf.ExtrapolationException) as e:
+        except (LookupException, ExtrapolationException) as e:
             # If timeout is given, repeatedly try again.
             if timeout:
                 time_start = time.time()
                 while time.time() - time_start < timeout:
                     try:
                         time.sleep(1.0)
-                        pose = self._tf_listener.lookupTransform(
+                        pose = _ros_wrapper.lookup_transform(
                             reference_frame,
                             self._namespace + robot_frame,
-                            rospy.Time(0),
+                            0,
                         )
                         return pose
-                    except tf.LookupException:
+                    except LookupException:
                         pass
             raise Excepthook.expect(e)
 
@@ -73,7 +85,7 @@ class Base(ActionlibComponent):
     ) -> Tuple[float, float, float]:
         """Return robot pose as (x, y, yaw in radians)."""
         position, orientation = self.get_pose(reference_frame, robot_frame, timeout)
-        _, _, yaw = tf.transformations.euler_from_quaternion(orientation)
+        _, _, yaw = _ros_wrapper.euler_from_quaternion(orientation)
         return position[0], position[1], yaw
 
     def get_pose_name(
@@ -90,7 +102,7 @@ class Base(ActionlibComponent):
          tolerances.
         """
         if not poses:
-            rospy.logwarn("No poses given to compare to.")
+            _ros_wrapper.log("No poses given to compare to.", level="warn")
             return None
 
         return get_pose_name(
@@ -101,55 +113,49 @@ class Base(ActionlibComponent):
         self,
         goal: MoveBaseGoal,
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to goal with timeout. Return the move_base action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        if not self._connect(Base.MOVE_BASE_TOPIC_NAME):
-            rospy.logerr("Did you launch the move_base node?")
+        if not _ros_wrapper._connect_to_action_server(_ros_wrapper.get_move_base_topic_name()):
+            _ros_wrapper.log("Did you launch the move_base node?", level="error")
             return
 
-        pose = TuplePose.from_pose(goal.target_pose.pose)
+        pose = TuplePose.from_pose(_ros_wrapper.get_pose_from_goal(goal))
         # Add waypoint if new, and move to goal.
         is_new_goal = pose not in Storage.waypoints.values()
         custom_goal_name = Storage._get_custom_waypoint_name(pose)
-        rospy.logdebug(
+        _ros_wrapper.log(
             f"Sending {'new ' if is_new_goal else ''}navigation goal "
             + (f"'{custom_goal_name}' " if custom_goal_name else "")
-            + f"{pose} ..."
+            + f"{pose} ...", level="debug"
         )
         if is_new_goal:
             Storage._add_generic_waypoint(pose)
         if done_cb is None:
-            rospy.logdebug(
-                f"Waiting for navigation result with timeout of {timeout} s ..."
+            _ros_wrapper.log(
+                f"Waiting for navigation result with timeout of {timeout} s ...",
+                level="debug",
             )
-            return self._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal_and_wait(
-                goal, rospy.Duration(timeout)
-            )
+            return _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_move_base_topic_name(), goal, timeout)
         else:
-            return self._action_clients[Base.MOVE_BASE_TOPIC_NAME].send_goal(
-                goal, done_cb
-            )
+            return _ros_wrapper.send_goal(_ros_wrapper.get_move_base_topic_name(), goal, done_cb)
 
     def move_to_pose(
         self,
         pose: Pose,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to pose in frame_id's map with timeout.
          Return the move_base action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = frame_id
-        goal.target_pose.header.stamp = rospy.Time.now()
-        goal.target_pose.pose = pose
+        goal = _ros_wrapper.create_goal(pose, frame_id)
         return self.move_to_goal(goal, timeout, done_cb)
 
     def move_to_tuple_pose(
@@ -157,7 +163,7 @@ class Base(ActionlibComponent):
         pose: Tuple[Sequence[float], Sequence[float]],
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to pose in frame_id's map with timeout.
@@ -172,7 +178,7 @@ class Base(ActionlibComponent):
         orientation: Sequence[float],
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to position and orientation in frame_id's map with timeout.
@@ -193,7 +199,7 @@ class Base(ActionlibComponent):
         yaw: float,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to given 6D pose in frame_id's map with timeout.
@@ -202,7 +208,7 @@ class Base(ActionlibComponent):
         """
         return self.move_to_pose(
             TuplePose.to_pose(
-                ((x, y, z), tf.transformations.quaternion_from_euler(roll, pitch, yaw))
+                ((x, y, z), _ros_wrapper.quaternion_from_euler(roll, pitch, yaw))
             ),
             frame_id,
             timeout,
@@ -214,7 +220,7 @@ class Base(ActionlibComponent):
         name: str,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to waypoint by name in frame_id's map with timeout.
@@ -223,13 +229,13 @@ class Base(ActionlibComponent):
         """
         if name not in Storage.waypoints.keys():
             if Storage.waypoints:
-                rospy.logerr(
+                _ros_wrapper.log(
                     f"Waypoint '{name}' does not exist. Available waypoints:\n"
-                    + Storage._waypoints_to_str()
+                    + Storage._waypoints_to_str(), level="error"
                 )
             else:
-                rospy.logerr(
-                    f"No waypoints defined yet, so cannot use waypoint '{name}'."
+                _ros_wrapper.log(
+                    f"No waypoints defined yet, so cannot use waypoint '{name}'.", level="error"
                 )
             return
 
@@ -243,7 +249,7 @@ class Base(ActionlibComponent):
         goal: MoveBaseGoal,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to goal with timeout. Return the move_base action server's result.
@@ -257,7 +263,7 @@ class Base(ActionlibComponent):
         pose: Union[Pose, Tuple[Sequence[float], Sequence[float]]],
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to pose in frame_id's map with timeout.
@@ -273,7 +279,7 @@ class Base(ActionlibComponent):
         orientation: Sequence[float],
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to position and orientation in frame_id's map with timeout.
@@ -290,7 +296,7 @@ class Base(ActionlibComponent):
         yaw: float,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to pose given by x, y, and yaw in radians.
@@ -310,7 +316,7 @@ class Base(ActionlibComponent):
         yaw: float,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
     ) -> Any:
         """
         Move robot to given 6D pose in frame_id's map with timeout.
@@ -324,7 +330,7 @@ class Base(ActionlibComponent):
         *args: Any,
         frame_id: str = "map",
         timeout: float = 60.0,
-        done_cb: Optional[Callable[[int, MoveBaseResult], Any]] = None,
+        done_cb: Optional[Callable[[int, Any], Any]] = None,
         **kwargs: Any,
     ) -> Any:
         goal: Optional[MoveBaseGoal] = kwargs.get("goal", get_at(args, 0, MoveBaseGoal))
@@ -394,14 +400,14 @@ class Base(ActionlibComponent):
         return self.move_to_goal(goal, timeout, done_cb)
 
 
-class Robot:
+class Robot():
     def __init__(
         self,
-        namespace: str = rospy.get_namespace(),
+        namespace: str = "/",
         connect_navigation_on_init: bool = False,
         connect_manipulation_on_init: bool = False,
     ) -> None:
-        _init_node()
+        _ros_wrapper._init_node()
         # Make sure namespace naming is correct.
         if not namespace.startswith("/"):
             namespace = "/" + namespace
@@ -409,5 +415,5 @@ class Robot:
             namespace += "/"
         self.namespace = namespace
         self.base = Base(namespace, connect_navigation_on_init)
-        self.arm = Arm(namespace, connect_manipulation_on_init)
-        self.gripper = Gripper(namespace, connect_manipulation_on_init)
+        #self.arm = Arm(namespace, connect_manipulation_on_init)
+        #self.gripper = Gripper(namespace, connect_manipulation_on_init)

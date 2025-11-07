@@ -16,7 +16,7 @@ from robot_api.msg import (
     FtObserverAction,
     FtObserverGoal,
 )
-from robot_api.lib import ActionlibComponent, get_angle_between
+from robot_api.lib import get_angle_between
 
 
 class TaskStage(IntEnum):
@@ -34,7 +34,7 @@ class TaskStage(IntEnum):
     ADD_PREDICATE_STATE = 101
 
 
-class Arm(ActionlibComponent):
+class Arm():
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
     MOVEIT_MACROS_TOPIC_NAME = "moveit_macros"
@@ -226,7 +226,7 @@ class Arm(ActionlibComponent):
         return None
 
 
-class Gripper(ActionlibComponent):
+class Gripper():
     def __init__(self, namespace: str, connect_manipulation_on_init: bool = False):
         super().__init__(
             namespace,

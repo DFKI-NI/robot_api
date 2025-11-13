@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='robot_api',
-    version='1.11.0',
+    version='1.12.0',
     packages=['robot_api'],
     install_requires=['setuptools'],
     maintainer='Alexander Sung',

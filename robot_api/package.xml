@@ -18,12 +18,12 @@
   <depend>sensor_msgs</depend>
   <depend>geometric_shapes</depend>
   <depend>robot_api_msgs</depend>
+  <depend>moveit_ros_planning_interface</depend>
 
   <!-- ROS 1 Dependencies -->
   <build_depend condition="$ROS_VERSION == 1">roscpp</build_depend>
   <build_depend condition="$ROS_VERSION == 1">roslaunch</build_depend>
   <depend condition="$ROS_VERSION == 1">eigen_conversions</depend>
-  <depend condition="$ROS_VERSION == 1">moveit_ros_planning_interface</depend>
   <depend condition="$ROS_VERSION == 1">moveit_commander</depend>
 
   <!-- ROS 2 Dependencies -->

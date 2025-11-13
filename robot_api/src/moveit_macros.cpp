@@ -39,7 +39,7 @@
 
 #include <ros/ros.h>
 #include <actionlib/server/simple_action_server.h>
-#include <robot_api/MoveItMacroAction.h>
+#include <robot_api_msgs/MoveItMacroAction.h>
 
 // MoveIt!
 #include <geometric_shapes/solid_primitive_dims.h>
@@ -64,7 +64,7 @@ namespace robot
 {
 std::string tf_prefix_ = "mobipick";
 
-struct GrapsPoseDefine
+struct GraspPoseDefine
 {
   Eigen::Isometry3d grasp_pose;
   std::float_t gripper_width;
@@ -106,11 +106,11 @@ moveit::planning_interface::MoveItErrorCode pick(moveit::planning_interface::Mov
   // --- calculate grasps
   // this is using standard frame orientation: x forward, y left, z up, relative to object bounding box center
 
-  std::vector<GrapsPoseDefine> grasp_poses;
+  std::vector<GraspPoseDefine> grasp_poses;
   /*
   {
     // GRASP 1: pitch = pi/8  (grasp handle from upper back)
-    GrapsPoseDefine grasp_pose_define;
+    GraspPoseDefine grasp_pose_define;
 
     Eigen::AngleAxisd rotation = Eigen::AngleAxisd(M_PI/8, Eigen::Vector3d(0.0d, 1.0d, 0.0d));
     grasp_pose_define.grasp_pose = Eigen::Isometry3d::Identity();
@@ -123,7 +123,7 @@ moveit::planning_interface::MoveItErrorCode pick(moveit::planning_interface::Mov
   */
   {
     // GRASP 2: pitch = pi/2 (grasp top part from above)
-    GrapsPoseDefine grasp_pose_define;
+    GraspPoseDefine grasp_pose_define;
     grasp_pose_define.grasp_pose = Eigen::Isometry3d::Identity();
     grasp_pose_define.grasp_pose.translate(Eigen::Vector3d(-0.03d, 0.0d, 0.085d));
     grasp_pose_define.grasp_pose.rotate(Eigen::AngleAxisd(M_PI_2, Eigen::Vector3d(0.0d, 1.0d, 0.0d)));
@@ -134,7 +134,7 @@ moveit::planning_interface::MoveItErrorCode pick(moveit::planning_interface::Mov
   /*
   {
     // GRASP 3: pitch = pi/2 (grasp top part from above mirrored)
-    GrapsPoseDefine grasp_pose_define;
+    GraspPoseDefine grasp_pose_define;
     grasp_pose_define.grasp_pose = Eigen::Isometry3d::Identity();
     grasp_pose_define.grasp_pose.translate(Eigen::Vector3d(-0.03d, 0.0d, 0.085d));
     grasp_pose_define.grasp_pose.rotate(Eigen::AngleAxisd(M_PI_2, Eigen::Vector3d(0.0d, 1.0d, 0.0d)));

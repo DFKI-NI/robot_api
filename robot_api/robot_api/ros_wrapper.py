@@ -3,6 +3,7 @@ import os
 import shlex
 import subprocess
 import time
+from threading import Event
 from abc import ABC, abstractmethod
 from typing import Optional, List, Tuple, Any, Dict, TypeVar, Generic, Union
 
@@ -12,11 +13,13 @@ try:
         import rospy
         import rosnode
         import rosgraph
+        import rosparam
         import actionlib
         import tf
         from tf.transformations import euler_from_quaternion, quaternion_from_euler
         from rospy import Duration
         from move_base_msgs.msg import MoveBaseGoal
+        from control_msgs.msg import GripperCommandGoal
     elif ros_version == "2":
         import rclpy
         from rclpy.node import Node
@@ -26,6 +29,7 @@ try:
         from tf_transformations import euler_from_quaternion, quaternion_from_euler
         from tf2_ros import TransformListener, Buffer
         from nav2_msgs.action import NavigateToPose
+        from control_msgs.action import ParallelGripperCommand
     else:
         raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
 except KeyError:
@@ -81,7 +85,15 @@ class RosWrapperInterface(ABC):
         pass
 
     @abstractmethod
-    def create_goal(self, pose, frame_id: str) -> Any:
+    def create_move_base_goal(self, pose, frame_id: str) -> Any:
+        pass
+
+    @abstractmethod
+    def create_open_gripper_goal(self, position: float, max_effort: float = 0.0) -> Any:
+        pass
+
+    @abstractmethod
+    def create_close_gripper_goal(self, position: float, max_effort: float = 0.0) -> Any:
         pass
 
     @abstractmethod
@@ -90,6 +102,34 @@ class RosWrapperInterface(ABC):
 
     @abstractmethod
     def get_move_base_topic_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_moveit_topic_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_ft_observer_topic_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_gripper_topic_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def wait_for_message(self, topic: str, message_type: Any, timeout: Optional[float] = None) -> Any:
+        pass
+
+    @abstractmethod
+    def list_params(self, namespace: str = "") -> List[str]:
+        pass
+
+    @abstractmethod
+    def get_param(self, param_name: str) -> Any:
+        pass
+
+    @abstractmethod
+    def launch_moveit_macros_command(self) -> str:
         pass
 
     def euler_from_quaternion(self, orientation: List[float], axes: str = "sxyz") -> Tuple[float, float, float]:
@@ -118,6 +158,9 @@ class RosWrapperInterface(ABC):
 
 class Ros1Wrapper(RosWrapperInterface):
     MOVE_BASE_TOPIC_NAME = "move_base"
+    MOVEIT_TOPIC_NAME = "moveit_macros"
+    FT_OBSERVER_TOPIC_NAME = "ft_observer"
+    GRIPPER_TOPIC_NAME = "gripper_hw"
     _namespace: str = ""
     _server_specs: Dict[str, Union[Tuple[Generic[T]], Tuple[Generic[T], str, int]]] = {}
     _action_clients: Dict[str, actionlib.SimpleActionClient] = {}
@@ -160,7 +203,7 @@ class Ros1Wrapper(RosWrapperInterface):
                            connect_on_init: bool = False):
         self._namespace = namespace
         assert server_specs, "Error: You must init an ActionlibComponent with an item in server_specs."
-        self._server_specs = server_specs
+        self._server_specs.update(server_specs)
         self._action_clients: Dict[str, actionlib.SimpleActionClient] = {}
         self._last_server_name: Optional[str] = None
         if connect_on_init:
@@ -219,19 +262,55 @@ class Ros1Wrapper(RosWrapperInterface):
                 reference_frame, source_frame, rospy.Time(time)
             )
     
-    def create_goal(self, pose, frame_id: str) -> MoveBaseGoal:
+    def create_move_base_goal(self, pose, frame_id: str) -> MoveBaseGoal:
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = frame_id
         goal.target_pose.header.stamp = rospy.Time.now()
         goal.target_pose.pose = pose
         return goal
+
+    def create_open_gripper_goal(self, position: float = 0.1, max_effort: float = 100.0) -> GripperCommandGoal:
+        goal = GripperCommandGoal()
+        goal.command.position = position
+        goal.command.max_effort = max_effort
+        return goal
+    
+    def create_close_gripper_goal(self, position: float = 0.0, max_effort: float = 50.0) -> GripperCommandGoal:
+        goal = GripperCommandGoal()
+        goal.command.position = position
+        goal.command.max_effort = max_effort
+        return goal
     
     def get_move_base_topic_name(self) -> str:
         return self.MOVE_BASE_TOPIC_NAME
+    
+    def get_moveit_topic_name(self) -> str:
+        return self.MOVEIT_TOPIC_NAME
+    
+    def get_ft_observer_topic_name(self) -> str:
+        return self.FT_OBSERVER_TOPIC_NAME
+    
+    def get_gripper_topic_name(self) -> str:
+        return self.GRIPPER_TOPIC_NAME
+    
+    def wait_for_message(self, topic, message_type, timeout = None):
+        return rospy.wait_for_message(topic, message_type, timeout)
+    
+    def list_params(self, namespace = ""):
+        return rosparam.list_params(namespace)
+    
+    def get_param(self, param_name: str):
+        return rosparam.get_param(param_name)
+    
+    def launch_moveit_macros_command(self) -> str:
+        return f"roslaunch robot_api moveit_macros.launch namespace:='{self._namespace.strip('/')}'"
 
 
 class Ros2Wrapper(RosWrapperInterface):
     MOVE_BASE_TOPIC_NAME = "nav2/navigate_to_pose"
+    MOVEIT_TOPIC_NAME = "moveit_macros"
+    FT_OBSERVER_TOPIC_NAME = "ft_observer"
+    GRIPPER_TOPIC_NAME = "robotiq_gripper_controller/gripper_cmd"
     _ros_node: Optional[Node] = None
     _namespace: str = ""
     _server_specs: Dict[str, Union[Tuple[Generic[T]], Tuple[Generic[T], str, int]]] = {}
@@ -257,6 +336,15 @@ class Ros2Wrapper(RosWrapperInterface):
     
     def get_move_base_topic_name(self) -> str:
         return self.MOVE_BASE_TOPIC_NAME
+    
+    def get_moveit_topic_name(self) -> str:
+        return self.MOVEIT_TOPIC_NAME
+    
+    def get_ft_observer_topic_name(self) -> str:
+        return self.FT_OBSERVER_TOPIC_NAME
+    
+    def get_gripper_topic_name(self) -> str:
+        return self.GRIPPER_TOPIC_NAME
 
     def log(self, message: str, level: str = "info", *args, **kwargs) -> None:
         node = self._init_node()
@@ -292,20 +380,21 @@ class Ros2Wrapper(RosWrapperInterface):
                            connect_on_init: bool = False):
         self._namespace = namespace
         assert server_specs, "Error: You must init an action server with an item in server_specs."
-        self._server_specs = server_specs
+        self._server_specs.update(server_specs)
         self._action_clients: Dict[str, List[ActionClient, Future]] = {}
         self._last_server_name: Optional[str] = None
         if connect_on_init:
             for server_name in server_specs.keys():
                 self._connect_to_action_server(server_name)
 
-    
     def _connect_to_action_server(self, server_name: str, timeout: float = 0.0) -> bool:
         node = self._init_node()
         self._last_server_name = server_name
         if server_name not in self._action_clients:
             server_spec = self._server_specs[server_name]
             action_client = ActionClient(node, server_spec[0], self._namespace + server_name)
+            if not action_client.wait_for_server(timeout_sec=0.0) and len(server_spec) == 3:
+                self._execute(*server_spec[1:])
             if not action_client.wait_for_server(timeout_sec=timeout):
                 self.log(f"Timeout while trying to connect to server '{server_name}'.{' ROS is shutting down.' if not rclpy.ok() else ''}", level="error")
                 return False
@@ -360,14 +449,57 @@ class Ros2Wrapper(RosWrapperInterface):
     def get_pose_from_goal(self, goal: Any) -> Tuple[List[float], List[float]]:
         return goal.pose.pose
     
-    def create_goal(self, pose, frame_id) -> NavigateToPose.Goal:
+    def create_move_base_goal(self, pose, frame_id) -> NavigateToPose.Goal:
         goal = NavigateToPose.Goal()
         goal.pose.header.frame_id = frame_id
         goal.pose.header.stamp = self._ros_node.get_clock().now().to_msg()
         goal.pose.pose = pose
         return goal
+    
+    def create_gripper_goal(self, position: float, max_effort: float = 0.0) -> ParallelGripperCommand.Goal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [position, ]
+        return goal
+    
+    def create_open_gripper_goal(self, position: float = 0.0, max_effort: float = 100.0) -> GripperCommandGoal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [position, ]
+        return goal
+    
+    def create_close_gripper_goal(self, position: float = 0.755, max_effort: float = 50.0) -> GripperCommandGoal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [position, ]
+        return goal
+    
+    def wait_for_message(self, topic, message_type, timeout = None):
+        event = Event()
+        msg = None
 
-_ros_wrapper = None
+        def callback(msg):
+            msg = msg
+            event.set()
+
+        sub = self._ros_node.create_subscription(message_type, topic, callback)
+        msg_received = event.wait(timeout=timeout)
+        self._ros_node.destroy_subscription(sub)
+
+        if not msg_received:
+            raise TimeoutError(f"No message received on {topic} within {timeout} seconds.")
+        return msg
+    
+    def list_params(self, namespace = ""):
+        return self._ros_node.list_parameters([namespace], 20).names
+    
+    def get_param(self, param_name: str):
+        return self._ros_node.get_parameter(param_name).get_parameter_value()
+    
+    def launch_moveit_macros_command(self) -> str:
+        if self._namespace == "" or self._namespace == "/":
+            return "ros2 launch robot_api moveit_macros_ros2.launch.py"
+        return f"ros2 launch robot_api moveit_macros_ros2.launch.py namespace:='{self._namespace.strip('/')}'"
+    
+
+_ros_wrapper: RosWrapperInterface = None
 def get_ros_wrapper() -> RosWrapperInterface:
     global _ros_wrapper
     if _ros_wrapper is None:

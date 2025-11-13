@@ -60,13 +60,25 @@ else()
   # ROS 2 (ament)
   find_package(ament_cmake REQUIRED)
   find_package(ament_cmake_python REQUIRED)
-
+  find_package(rclcpp REQUIRED)
+  find_package(rclcpp_action REQUIRED)
+  find_package(std_msgs REQUIRED)
   find_package(geometry_msgs REQUIRED)
+  find_package(geometric_shapes REQUIRED)
+  find_package(control_msgs REQUIRED)
   find_package(sensor_msgs REQUIRED)
   find_package(moveit_msgs REQUIRED)
+  find_package(moveit_ros_planning_interface REQUIRED)
   find_package(robot_api_msgs REQUIRED)
 
-  ament_python_install_package(${PROJECT_NAME})
+  add_executable(${PROJECT_NAME}_moveit_macros_ros2 src/moveit_macros_ros2.cpp)
+  ament_target_dependencies(${PROJECT_NAME}_moveit_macros_ros2 rclcpp rclcpp_action std_msgs robot_api_msgs moveit_ros_planning_interface geometric_shapes control_msgs)
+  set_target_properties(${PROJECT_NAME}_moveit_macros_ros2 PROPERTIES OUTPUT_NAME moveit_macros_ros2 PREFIX "")
+
+  install(
+    TARGETS ${PROJECT_NAME}_moveit_macros_ros2
+    DESTINATION lib/${PROJECT_NAME}
+  )
 
   install(
     DIRECTORY launch
@@ -77,6 +89,8 @@ else()
     DIRECTORY config
     DESTINATION share/${PROJECT_NAME}
   )
+
+  ament_python_install_package(${PROJECT_NAME})
 
   ament_package()
 endif()

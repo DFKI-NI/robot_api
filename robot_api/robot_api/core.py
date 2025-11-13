@@ -3,7 +3,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, Union, ove
 import os
 import time
 from geometry_msgs.msg import Pose
-#from robot_api.extensions import Arm, Gripper
+from robot_api.extensions import Arm, Gripper
 from robot_api.excepthook import Excepthook
 from robot_api.lib import (
     Storage,
@@ -11,7 +11,7 @@ from robot_api.lib import (
     get_at,
     get_pose_name,
 )
-from robot_api.ros_wrapper import get_ros_wrapper
+from robot_api.ros_wrapper import get_ros_wrapper, RosWrapperInterface
 
 try:
     ros_version = os.environ["ROS_VERSION"]
@@ -28,7 +28,7 @@ except KeyError:
     raise ImportError("ROS_VERSION environment variable not set. Please source your ROS setup file.")
 
 
-_ros_wrapper = get_ros_wrapper()
+_ros_wrapper: RosWrapperInterface = get_ros_wrapper()
 
 
 class Base():
@@ -155,7 +155,7 @@ class Base():
          Return the move_base action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        goal = _ros_wrapper.create_goal(pose, frame_id)
+        goal = _ros_wrapper.create_move_base_goal(pose, frame_id)
         return self.move_to_goal(goal, timeout, done_cb)
 
     def move_to_tuple_pose(
@@ -415,5 +415,5 @@ class Robot():
             namespace += "/"
         self.namespace = namespace
         self.base = Base(namespace, connect_navigation_on_init)
-        #self.arm = Arm(namespace, connect_manipulation_on_init)
-        #self.gripper = Gripper(namespace, connect_manipulation_on_init)
+        self.arm = Arm(namespace, connect_manipulation_on_init)
+        self.gripper = Gripper(namespace, connect_manipulation_on_init)

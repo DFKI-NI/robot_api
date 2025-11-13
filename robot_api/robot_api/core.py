@@ -21,17 +21,20 @@ try:
     elif ros_version == "2":
         from tf2_ros import LookupException, ExtrapolationException
         from nav2_msgs.action import NavigateToPose as MoveBaseAction
+
         MoveBaseGoal = MoveBaseAction.Goal
     else:
         raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
 except KeyError:
-    raise ImportError("ROS_VERSION environment variable not set. Please source your ROS setup file.")
+    raise ImportError(
+        "ROS_VERSION environment variable not set. Please source your ROS setup file."
+    )
 
 
 _ros_wrapper: RosWrapperInterface = get_ros_wrapper()
 
 
-class Base():
+class Base:
     """Representation of a robot's base with navigation capabilities."""
 
     # Note: Cannot use move_base goal tolerances because movement by move_base does not
@@ -119,7 +122,9 @@ class Base():
         Move robot to goal with timeout. Return the move_base action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        if not _ros_wrapper._connect_to_action_server(_ros_wrapper.get_move_base_topic_name()):
+        if not _ros_wrapper._connect_to_action_server(
+            _ros_wrapper.get_move_base_topic_name()
+        ):
             _ros_wrapper.log("Did you launch the move_base node?", level="error")
             return
 
@@ -130,7 +135,8 @@ class Base():
         _ros_wrapper.log(
             f"Sending {'new ' if is_new_goal else ''}navigation goal "
             + (f"'{custom_goal_name}' " if custom_goal_name else "")
-            + f"{pose} ...", level="debug"
+            + f"{pose} ...",
+            level="debug",
         )
         if is_new_goal:
             Storage._add_generic_waypoint(pose)
@@ -139,9 +145,13 @@ class Base():
                 f"Waiting for navigation result with timeout of {timeout} s ...",
                 level="debug",
             )
-            return _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_move_base_topic_name(), goal, timeout)
+            return _ros_wrapper.send_goal_and_wait(
+                _ros_wrapper.get_move_base_topic_name(), goal, timeout
+            )
         else:
-            return _ros_wrapper.send_goal(_ros_wrapper.get_move_base_topic_name(), goal, done_cb)
+            return _ros_wrapper.send_goal(
+                _ros_wrapper.get_move_base_topic_name(), goal, done_cb
+            )
 
     def move_to_pose(
         self,
@@ -231,11 +241,13 @@ class Base():
             if Storage.waypoints:
                 _ros_wrapper.log(
                     f"Waypoint '{name}' does not exist. Available waypoints:\n"
-                    + Storage._waypoints_to_str(), level="error"
+                    + Storage._waypoints_to_str(),
+                    level="error",
                 )
             else:
                 _ros_wrapper.log(
-                    f"No waypoints defined yet, so cannot use waypoint '{name}'.", level="error"
+                    f"No waypoints defined yet, so cannot use waypoint '{name}'.",
+                    level="error",
                 )
             return
 
@@ -400,7 +412,7 @@ class Base():
         return self.move_to_goal(goal, timeout, done_cb)
 
 
-class Robot():
+class Robot:
     def __init__(
         self,
         namespace: str = "/",

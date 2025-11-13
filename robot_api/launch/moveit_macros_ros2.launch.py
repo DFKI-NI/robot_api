@@ -20,7 +20,7 @@ def generate_launch_description():
     ns = LaunchConfiguration("namespace")
     tf_prefix = LaunchConfiguration("tf_prefix")
     prefix = LaunchConfiguration("prefix")
-    
+
     node = Node(
         package="robot_api",
         executable="moveit_macros_ros2",
@@ -31,25 +31,36 @@ def generate_launch_description():
             moveit_config.robot_description_kinematics,
             moveit_config.joint_limits,
             moveit_config.planning_pipelines,
-            {"planning_scene_config_file": os.path.join(get_package_share_directory("grasplan_core"), "config", "cic_planning_scene.yaml")},
+            {
+                "planning_scene_config_file": os.path.join(
+                    get_package_share_directory("grasplan_core"),
+                    "config",
+                    "cic_planning_scene.yaml",
+                )
+            },
         ],
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "namespace",
-            default_value="",
-            description="Top-level namespace for all nodes"
-        ),
-        DeclareLaunchArgument(
-            "tf_prefix",
-            default_value=ns,
-            description="tf_prefix to be used"
-        ),
-        DeclareLaunchArgument(
-            "prefix",
-            default_value=f"{tf_prefix}/" if tf_prefix != "" else "",
-            description="Prefix used in all config files"
-        ),
-        GroupAction([PushROSNamespace(ns), node,]),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "namespace",
+                default_value="",
+                description="Top-level namespace for all nodes",
+            ),
+            DeclareLaunchArgument(
+                "tf_prefix", default_value=ns, description="tf_prefix to be used"
+            ),
+            DeclareLaunchArgument(
+                "prefix",
+                default_value=f"{tf_prefix}/" if tf_prefix != "" else "",
+                description="Prefix used in all config files",
+            ),
+            GroupAction(
+                [
+                    PushROSNamespace(ns),
+                    node,
+                ]
+            ),
+        ]
+    )

@@ -24,9 +24,11 @@ from robot_api.ros_wrapper import get_ros_wrapper
 
 _ros_wrapper = get_ros_wrapper()
 
+
 def _s(count: int, name: str, plural: str = "s") -> str:
     """Return name with or without plural ending depending on count."""
     return f"{count} {name}{plural if count != 1 else ''}"
+
 
 class TuplePose:
     """Helper class for handling geometry_msgs/Pose."""
@@ -52,8 +54,12 @@ class TuplePose:
 
     @staticmethod
     def to_pose(pose: Tuple[Sequence[float], Sequence[float]]) -> Pose:
-        return Pose(position=Point(x=pose[0][0], y=pose[0][1], z=pose[0][2]),
-                    orientation=Quaternion(x=pose[1][0], y=pose[1][1], z=pose[1][2], w=pose[1][3]))
+        return Pose(
+            position=Point(x=pose[0][0], y=pose[0][1], z=pose[0][2]),
+            orientation=Quaternion(
+                x=pose[1][0], y=pose[1][1], z=pose[1][2], w=pose[1][3]
+            ),
+        )
 
     @staticmethod
     def to_str(pose: Tuple[Sequence[float], Sequence[float]]) -> str:
@@ -130,6 +136,7 @@ def is_instance(obj: object, type_or_generic: Any) -> bool:
         )
     return isinstance(obj, type_or_generic)
 
+
 def get_at(args: Any, index: int, type_or_generic: Any) -> Any:
     """Return element in args at index if its type matches type_or_generic, else None."""
     return (
@@ -140,6 +147,7 @@ def get_at(args: Any, index: int, type_or_generic: Any) -> Any:
         else None
     )
 
+
 def get_angle_between(source: float, target: float) -> float:
     """Return angle from source to target in [-pi, pi)."""
     angle = target - source
@@ -149,11 +157,13 @@ def get_angle_between(source: float, target: float) -> float:
         angle -= 2 * math.pi
     return angle
 
-def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
-                  poses: Mapping = Storage.waypoints,
-                  xy_tolerance=math.inf,
-                  yaw_tolerance=math.inf
-    ) -> Optional[str]:
+
+def get_pose_name(
+    pose: Tuple[Sequence[float], Sequence[float]],
+    poses: Mapping = Storage.waypoints,
+    xy_tolerance=math.inf,
+    yaw_tolerance=math.inf,
+) -> Optional[str]:
     position, orientation = pose
     _, _, yaw = _ros_wrapper.euler_from_quaternion(orientation)
     pose_name: Optional[str] = None
@@ -162,11 +172,16 @@ def get_pose_name(pose: Tuple[Sequence[float], Sequence[float]],
         _, _, check_yaw = _ros_wrapper.euler_from_quaternion(check_orientation)
         xy_distance = math.dist(position, check_position)
         yaw_distance = abs(get_angle_between(yaw, check_yaw))
-        if xy_distance <= xy_tolerance and yaw_distance <= yaw_tolerance and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance):
+        if (
+            xy_distance <= xy_tolerance
+            and yaw_distance <= yaw_tolerance
+            and (xy_distance < xy_tolerance or yaw_distance < min_yaw_distance)
+        ):
             pose_name = check_name
             xy_tolerance = xy_distance
             min_yaw_distance = yaw_distance
     return pose_name
+
 
 def find_robot_namespaces() -> List[str]:
     _ros_wrapper._init_node()
@@ -176,15 +191,19 @@ def find_robot_namespaces() -> List[str]:
         raise Excepthook.expect(e)
     robot_namespaces: List[str] = []
     for topic, _ in topics:
-        if (match := re.match(r"([\w\/]*)\/move_base\/goal", topic)):
+        if match := re.match(r"([\w\/]*)\/move_base\/goal", topic):
             robot_namespaces.append(match.group(1))
     return robot_namespaces
+
 
 def add_waypoint(name: str, pose: Tuple[Sequence[float], Sequence[float]]) -> None:
     _ros_wrapper._init_node()
     if name in Storage.waypoints:
-        _ros_wrapper.log(f"Overwriting waypoint: {Storage.waypoints[name]}", level="warn")
+        _ros_wrapper.log(
+            f"Overwriting waypoint: {Storage.waypoints[name]}", level="warn"
+        )
     Storage.waypoints[name] = TuplePose.from_sequence_tuple(pose)
+
 
 def save_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
     _ros_wrapper._init_node()
@@ -199,6 +218,7 @@ def save_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
     except Exception:
         _ros_wrapper.log(f"Error while writing to file '{filepath}'!", level="error")
 
+
 def load_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
     _ros_wrapper._init_node()
     filepath = os.path.expanduser(filepath)
@@ -210,10 +230,16 @@ def load_waypoints(filepath: str = "~/.ros/robot_api_waypoints.yaml") -> None:
             assert isinstance(elements, dict), f"Invalid format in line: {line}"
             for name, pose in elements.items():
                 add_waypoint(name, pose)
-        _ros_wrapper.log(f"{_s(len(lines), 'waypoint')} loaded, now {len(Storage.waypoints)} in total.", level="info")
+        _ros_wrapper.log(
+            f"{_s(len(lines), 'waypoint')} loaded, now {len(Storage.waypoints)} in total.",
+            level="info",
+        )
     except Exception:
         _ros_wrapper.log(f"Error while reading from file '{filepath}'!", level="error")
 
+
 def print_waypoints() -> None:
     _ros_wrapper._init_node()
-    _ros_wrapper.log(f"Available waypoints:\n" + Storage._waypoints_to_str(), level="info")
+    _ros_wrapper.log(
+        f"Available waypoints:\n" + Storage._waypoints_to_str(), level="info"
+    )

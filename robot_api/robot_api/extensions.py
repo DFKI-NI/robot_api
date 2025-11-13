@@ -12,19 +12,29 @@ from robot_api.ros_wrapper import get_ros_wrapper, RosWrapperInterface
 try:
     ros_version = os.environ["ROS_VERSION"]
     if ros_version == "1":
-        from robot_api_msgs.msg import MoveItMacroAction, MoveItMacroGoal, MoveItMacroResult, FtObserverAction, FtObserverGoal
+        from robot_api_msgs.msg import (
+            MoveItMacroAction,
+            MoveItMacroGoal,
+            MoveItMacroResult,
+            FtObserverAction,
+            FtObserverGoal,
+        )
         from control_msgs.msg import GripperCommandAction
     elif ros_version == "2":
         from robot_api_msgs.action import MoveItMacro as MoveItMacroAction
+
         MoveItMacroGoal = MoveItMacroAction.Goal
         MoveItMacroResult = MoveItMacroAction.Result
         from robot_api_msgs.action import FtObserver as FtObserverAction
+
         FtObserverGoal = FtObserverAction.Goal
         from control_msgs.action import ParallelGripperCommand as GripperCommandAction
     else:
         raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
 except KeyError:
-    raise ImportError("ROS_VERSION environment variable not set. Please source your ROS setup file.")
+    raise ImportError(
+        "ROS_VERSION environment variable not set. Please source your ROS setup file."
+    )
 
 
 _ros_wrapper: RosWrapperInterface = get_ros_wrapper()
@@ -45,7 +55,7 @@ class TaskStage(IntEnum):
     ADD_PREDICATE_STATE = 101
 
 
-class Arm():
+class Arm:
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
     ANGLE_TOLERANCE = 0.01
@@ -128,10 +138,11 @@ class Arm():
          Return the moveit_macro action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        if not _ros_wrapper._connect_to_action_server(_ros_wrapper.get_moveit_topic_name()):
+        if not _ros_wrapper._connect_to_action_server(
+            _ros_wrapper.get_moveit_topic_name()
+        ):
             _ros_wrapper.log(
-                "Did you launch moveit_macros"
-                " with correct 'namespace'?",
+                "Did you launch moveit_macros" " with correct 'namespace'?",
                 level="error",
             )
             return None
@@ -143,8 +154,7 @@ class Arm():
             _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_moveit_topic_name(), goal)
             if done_cb is None
             else _ros_wrapper.send_goal(
-                _ros_wrapper.get_moveit_topic_name(),
-                goal, done_cb
+                _ros_wrapper.get_moveit_topic_name(), goal, done_cb
             )
         )
 
@@ -176,14 +186,18 @@ class Arm():
         Call force torque observer with given threshold and timeout.
          Return whether successful.
         """
-        if not _ros_wrapper._connect_to_action_server(_ros_wrapper.get_ft_observer_topic_name()):
+        if not _ros_wrapper._connect_to_action_server(
+            _ros_wrapper.get_ft_observer_topic_name()
+        ):
             _ros_wrapper.log("Did you launch the ft_observer node?", level="error")
             return False
 
         goal = FtObserverGoal()
         goal.threshold = threshold
         goal.timeout = timeout
-        result = _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_ft_observer_topic_name(), goal, timeout)
+        result = _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_ft_observer_topic_name(), goal, timeout
+        )
         return result.catched if result is not None else False
 
     def get_pose_name(
@@ -205,7 +219,7 @@ class Arm():
         return None
 
 
-class Gripper():
+class Gripper:
     def __init__(self, namespace: str, connect_manipulation_on_init: bool = False):
         _ros_wrapper.init_action_server(
             namespace,
@@ -215,10 +229,20 @@ class Gripper():
 
     def open(self):
         if _ros_wrapper.get_gripper_topic_name() not in _ros_wrapper._action_clients:
-            _ros_wrapper._connect_to_action_server(_ros_wrapper.get_gripper_topic_name())
-        _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_gripper_topic_name(), _ros_wrapper.create_open_gripper_goal())
+            _ros_wrapper._connect_to_action_server(
+                _ros_wrapper.get_gripper_topic_name()
+            )
+        _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_gripper_topic_name(),
+            _ros_wrapper.create_open_gripper_goal(),
+        )
 
     def close(self):
         if _ros_wrapper.get_gripper_topic_name() not in _ros_wrapper._action_clients:
-            _ros_wrapper._connect_to_action_server(_ros_wrapper.get_gripper_topic_name())
-        _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_gripper_topic_name(), _ros_wrapper.create_close_gripper_goal())
+            _ros_wrapper._connect_to_action_server(
+                _ros_wrapper.get_gripper_topic_name()
+            )
+        _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_gripper_topic_name(),
+            _ros_wrapper.create_close_gripper_goal(),
+        )

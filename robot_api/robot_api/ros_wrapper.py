@@ -354,6 +354,27 @@ class Ros1Wrapper(RosWrapperInterface):
     def launch_moveit_macros_command(self) -> str:
         return f"roslaunch robot_api moveit_macros.launch namespace:='{self._namespace.strip('/')}'"
 
+    def get_moveit_topic_name(self) -> str:
+        return self.MOVEIT_TOPIC_NAME
+
+    def get_ft_observer_topic_name(self) -> str:
+        return self.FT_OBSERVER_TOPIC_NAME
+
+    def get_gripper_topic_name(self) -> str:
+        return self.GRIPPER_TOPIC_NAME
+
+    def wait_for_message(self, topic, message_type, timeout=None):
+        return rospy.wait_for_message(topic, message_type, timeout)
+
+    def list_params(self, namespace=""):
+        return rosparam.list_params(namespace)
+
+    def get_param(self, param_name: str):
+        return rosparam.get_param(param_name)
+
+    def launch_moveit_macros_command(self) -> str:
+        return f"roslaunch robot_api moveit_macros.launch namespace:='{self._namespace.strip('/')}'"
+
 
 class Ros2Wrapper(RosWrapperInterface):
     MOVE_BASE_TOPIC_NAME = "nav2/navigate_to_pose"
@@ -385,6 +406,15 @@ class Ros2Wrapper(RosWrapperInterface):
 
     def get_move_base_topic_name(self) -> str:
         return self.MOVE_BASE_TOPIC_NAME
+
+    def get_moveit_topic_name(self) -> str:
+        return self.MOVEIT_TOPIC_NAME
+
+    def get_ft_observer_topic_name(self) -> str:
+        return self.FT_OBSERVER_TOPIC_NAME
+
+    def get_gripper_topic_name(self) -> str:
+        return self.GRIPPER_TOPIC_NAME
 
     def get_moveit_topic_name(self) -> str:
         return self.MOVEIT_TOPIC_NAME
@@ -526,6 +556,37 @@ class Ros2Wrapper(RosWrapperInterface):
         goal.pose.header.stamp = self._ros_node.get_clock().now().to_msg()
         goal.pose.pose = pose
         return goal
+
+    def create_gripper_goal(
+        self, position: float, max_effort: float = 0.0
+    ) -> ParallelGripperCommand.Goal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [
+            position,
+        ]
+        return goal
+
+    def create_open_gripper_goal(
+        self, position: float = 0.0, max_effort: float = 100.0
+    ) -> GripperCommandGoal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [
+            position,
+        ]
+        return goal
+
+    def create_close_gripper_goal(
+        self, position: float = 0.755, max_effort: float = 50.0
+    ) -> GripperCommandGoal:
+        goal = ParallelGripperCommand.Goal()
+        goal.command.position = [
+            position,
+        ]
+        return goal
+
+    def wait_for_message(self, topic, message_type, timeout=None):
+        event = Event()
+        msg = None
 
     def create_gripper_goal(
         self, position: float, max_effort: float = 0.0

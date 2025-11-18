@@ -198,7 +198,7 @@ class Arm:
         result = _ros_wrapper.send_goal_and_wait(
             _ros_wrapper.get_ft_observer_topic_name(), goal, timeout
         )
-        return result.catched if result is not None else False
+        return result if result is not None else False
 
     def get_pose_name(
         self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float] = None

@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robot_api</name>
+  <version>1.12.0</version>
+  <description>A pre- and concise Python API to control robots with simple commands.</description>
+  <maintainer email="Alexander.Sung@dfki.de">Alexander Sung</maintainer>
+  <license>MIT</license>
+  <url type="website">https://git.ni.dfki.de/acting/robot_api</url>
+  <author email="Alexander.Sung@dfki.de">Alexander Sung</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend condition="$ROS_VERSION == 2">ament_cmake</buildtool_depend>
+  <buildtool_depend condition="$ROS_VERSION == 2">ament_cmake_python</buildtool_depend>
+
+  <depend>actionlib_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>moveit_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometric_shapes</depend>
+  <depend>robot_api_msgs</depend>
+  <depend>moveit_ros_planning_interface</depend>
+
+  <!-- ROS 1 Dependencies -->
+  <build_depend condition="$ROS_VERSION == 1">roscpp</build_depend>
+  <build_depend condition="$ROS_VERSION == 1">roslaunch</build_depend>
+  <depend condition="$ROS_VERSION == 1">eigen_conversions</depend>
+  <depend condition="$ROS_VERSION == 1">moveit_commander</depend>
+
+  <!-- ROS 2 Dependencies -->
+  <depend condition="$ROS_VERSION == 2">rclcpp</depend>
+  <depend condition="$ROS_VERSION == 2">rclpy</depend>
+  <depend condition="$ROS_VERSION == 2">tf2_ros</depend>
+  <depend condition="$ROS_VERSION == 2">tf2_eigen</depend>
+  <depend condition="$ROS_VERSION == 2">moveit_ros_planning_interface</depend>
+  <exec_depend condition="$ROS_VERSION == 2">launch_ros</exec_depend>
+  <exec_depend condition="$ROS_VERSION == 2">python3-setuptools</exec_depend>
+
+  <export>
+    <build_type condition="$ROS_VERSION == 2">ament_cmake</build_type>
+  </export>
+</package>

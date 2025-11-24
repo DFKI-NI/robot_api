@@ -1,22 +1,43 @@
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from enum import IntEnum
+import os
 import re
-import sys
-import rospy
-import rosparam
-import moveit_commander
-from geometry_msgs.msg import Pose
+
 from sensor_msgs.msg import JointState
-from control_msgs.msg import GripperCommandAction, GripperCommandGoal
-from robot_api.msg import (
-    MoveItMacroAction,
-    MoveItMacroGoal,
-    MoveItMacroResult,
-    FtObserverAction,
-    FtObserverGoal,
-)
-from robot_api.lib import ActionlibComponent, get_angle_between
+
+from robot_api.lib import get_angle_between
+from robot_api.ros_wrapper import get_ros_wrapper, RosWrapperInterface
+
+try:
+    ros_version = os.environ["ROS_VERSION"]
+    if ros_version == "1":
+        from robot_api_msgs.msg import (
+            MoveItMacroAction,
+            MoveItMacroGoal,
+            MoveItMacroResult,
+            FtObserverAction,
+            FtObserverGoal,
+        )
+        from control_msgs.msg import GripperCommandAction
+    elif ros_version == "2":
+        from robot_api_msgs.action import MoveItMacro as MoveItMacroAction
+
+        MoveItMacroGoal = MoveItMacroAction.Goal
+        MoveItMacroResult = MoveItMacroAction.Result
+        from robot_api_msgs.action import FtObserver as FtObserverAction
+
+        FtObserverGoal = FtObserverAction.Goal
+        from control_msgs.action import ParallelGripperCommand as GripperCommandAction
+    else:
+        raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
+except KeyError:
+    raise ImportError(
+        "ROS_VERSION environment variable not set. Please source your ROS setup file."
+    )
+
+
+_ros_wrapper: RosWrapperInterface = get_ros_wrapper()
 
 
 class TaskStage(IntEnum):
@@ -34,11 +55,9 @@ class TaskStage(IntEnum):
     ADD_PREDICATE_STATE = 101
 
 
-class Arm(ActionlibComponent):
+class Arm:
     ROSLAUNCH_SLEEP_DURATION = 10
     ROBOT_DESCRIPTION_SEMANTIC = "robot_description_semantic"
-    MOVEIT_MACROS_TOPIC_NAME = "moveit_macros"
-    FT_OBSERVER_TOPIC_NAME = "ft_observer"
     ANGLE_TOLERANCE = 0.01
 
     def __init__(
@@ -47,23 +66,21 @@ class Arm(ActionlibComponent):
         connect_manipulation_on_init: bool,
         group_name: str = "arm",
     ) -> None:
-        super().__init__(
+        _ros_wrapper.init_action_server(
             namespace,
             {
-                self.MOVEIT_MACROS_TOPIC_NAME: (
+                _ros_wrapper.get_moveit_topic_name(): (
                     MoveItMacroAction,
-                    "roslaunch robot_api moveit_macros.launch"
-                    f" namespace:='{namespace.strip('/')}'",
+                    _ros_wrapper.launch_moveit_macros_command(),
                     self.ROSLAUNCH_SLEEP_DURATION,
                 ),
-                self.FT_OBSERVER_TOPIC_NAME: (FtObserverAction,),
+                _ros_wrapper.get_ft_observer_topic_name(): (FtObserverAction,),
             },
             connect_manipulation_on_init,
         )
         self._pose_joint_values = self._get_pose_joint_values()
         self.pose_names = list(self._pose_joint_values.keys())
         self.group_name = group_name
-        self._moveit_init = False
 
     @staticmethod
     def _parse(pattern: str, string: str) -> str:
@@ -77,20 +94,13 @@ class Arm(ActionlibComponent):
         ), f"Error: Cannot parse '{string}' from '{pattern}'!"
         return match_result.group(1)
 
-    def _init_moveit_commander(self):
-        moveit_commander.roscpp_initialize(sys.argv)
-        self.robot = moveit_commander.RobotCommander()
-        self.scene = moveit_commander.PlanningSceneInterface()
-        self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
-        self._moveit_init = True
-
     def _get_pose_joint_values(self) -> Dict[str, Dict[str, float]]:
         """Get joint values from semantic robot description parameter used for arm poses."""
-        params = rosparam.list_params(self._namespace)
+        params = _ros_wrapper.list_params(_ros_wrapper._namespace)
         # If default param name exists, use it.
-        if self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
-            param = rosparam.get_param(
-                self._namespace + self.ROBOT_DESCRIPTION_SEMANTIC
+        if _ros_wrapper._namespace + self.ROBOT_DESCRIPTION_SEMANTIC in params:
+            param = _ros_wrapper.get_param(
+                _ros_wrapper._namespace + self.ROBOT_DESCRIPTION_SEMANTIC
             )
         else:
             # Otherwise search for param which ends with '_semantic',
@@ -128,19 +138,23 @@ class Arm(ActionlibComponent):
          Return the moveit_macro action server's result.
         If done_cb is given, make this an asynchronous action and call done_cb() when done.
         """
-        if not self._connect(self.MOVEIT_MACROS_TOPIC_NAME):
-            rospy.logerr(
-                "Did you 'roslaunch mobipick_pick_n_place moveit_macros.launch'"
-                " with correct 'namespace'?"
+        if not _ros_wrapper._connect_to_action_server(
+            _ros_wrapper.get_moveit_topic_name()
+        ):
+            _ros_wrapper.log(
+                "Did you launch moveit_macros" " with correct 'namespace'?",
+                level="error",
             )
             return None
 
-        goal = MoveItMacroGoal(type=goal_type, name=goal_name)
+        goal = MoveItMacroGoal()
+        goal.type = goal_type
+        goal.name = goal_name
         return (
-            self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal_and_wait(goal)
+            _ros_wrapper.send_goal_and_wait(_ros_wrapper.get_moveit_topic_name(), goal)
             if done_cb is None
-            else self._action_clients[self.MOVEIT_MACROS_TOPIC_NAME].send_goal(
-                goal, done_cb
+            else _ros_wrapper.send_goal(
+                _ros_wrapper.get_moveit_topic_name(), goal, done_cb
             )
         )
 
@@ -167,52 +181,31 @@ class Arm(ActionlibComponent):
         """
         return self._call_moveit_macro("target", pose_name, done_cb)
 
-    def move_to_pose(self, pose: Pose) -> bool:
-        """
-        Move arm endeffector to pose using the MoveIt Commander.
-        """
-        if not self._moveit_init:
-            self._init_moveit_commander()
-        self.move_group.set_pose_target(pose)
-        success = self.move_group.go(wait=True)
-        if not success:
-            rospy.logerr("moving to goal pose not successful!")
-        # Calling `stop()` ensures that there is no residual movement
-        self.move_group.stop()
-        self.move_group.clear_pose_targets()
-        return success
-
-    def get_pose(self):
-        """
-        Get pose of endeffector. Use in combination with move_to_position
-        to reach relative positions.
-        """
-        if not self._moveit_init:
-            self._init_moveit_commander()
-        return self.move_group.get_current_pose().pose
-
     def observe_force_torque(self, threshold: float, timeout: float) -> bool:
         """
         Call force torque observer with given threshold and timeout.
          Return whether successful.
         """
-        if not self._connect(self.FT_OBSERVER_TOPIC_NAME):
-            rospy.logerr("Did you launch the ft_observer node?")
+        if not _ros_wrapper._connect_to_action_server(
+            _ros_wrapper.get_ft_observer_topic_name()
+        ):
+            _ros_wrapper.log("Did you launch the ft_observer node?", level="error")
             return False
 
-        goal = FtObserverGoal(threshold=threshold, timeout=timeout)
-        action_client = self._action_clients[self.FT_OBSERVER_TOPIC_NAME]
-        action_client.send_goal(goal)
-        action_client.wait_for_result()
-        # Note: http://docs.ros.org/en/kinetic/api/actionlib_msgs/html/msg/GoalStatus.html
-        return int(action_client.get_state()) == 3
+        goal = FtObserverGoal()
+        goal.threshold = threshold
+        goal.timeout = timeout
+        result = _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_ft_observer_topic_name(), goal, timeout
+        )
+        return result if result is not None else False
 
     def get_pose_name(
         self, angle_tolerance=ANGLE_TOLERANCE, timeout: Optional[float] = None
     ) -> Optional[str]:
         """Return the pose name if the robot arm is currently in one of the known poses."""
-        joint_state: JointState = rospy.wait_for_message(
-            self._namespace + "joint_states", JointState, timeout
+        joint_state: JointState = _ros_wrapper.wait_for_message(
+            _ros_wrapper._namespace + "joint_states", JointState, timeout
         )
         for pose_name, joints in self._pose_joint_values.items():
             for joint_name, value in joints.items():
@@ -226,25 +219,30 @@ class Arm(ActionlibComponent):
         return None
 
 
-class Gripper(ActionlibComponent):
+class Gripper:
     def __init__(self, namespace: str, connect_manipulation_on_init: bool = False):
-        super().__init__(
+        _ros_wrapper.init_action_server(
             namespace,
-            # create an action client for the gripper
-            {"gripper_hw": (GripperCommandAction,)},
+            {_ros_wrapper.get_gripper_topic_name(): (GripperCommandAction,)},
             connect_manipulation_on_init,
         )
 
     def open(self):
-        self.send_goal_and_wait(100, 0.1)
+        if _ros_wrapper.get_gripper_topic_name() not in _ros_wrapper._action_clients:
+            _ros_wrapper._connect_to_action_server(
+                _ros_wrapper.get_gripper_topic_name()
+            )
+        _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_gripper_topic_name(),
+            _ros_wrapper.create_open_gripper_goal(),
+        )
 
     def close(self):
-        self.send_goal_and_wait(50, 0.0)
-
-    def send_goal_and_wait(self, max_effort, position):
-        if "gripper_hw" not in self._action_clients:
-            self._connect("gripper_hw")
-        goal = GripperCommandGoal()
-        goal.command.max_effort = max_effort
-        goal.command.position = position
-        self._action_clients["gripper_hw"].send_goal_and_wait(goal)
+        if _ros_wrapper.get_gripper_topic_name() not in _ros_wrapper._action_clients:
+            _ros_wrapper._connect_to_action_server(
+                _ros_wrapper.get_gripper_topic_name()
+            )
+        _ros_wrapper.send_goal_and_wait(
+            _ros_wrapper.get_gripper_topic_name(),
+            _ros_wrapper.create_close_gripper_goal(),
+        )

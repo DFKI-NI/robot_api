@@ -1,5 +1,17 @@
 try:
-    import robot_api.msg
+    import os
+
+    ros_version = os.environ["ROS_VERSION"]
+    if ros_version == "1":
+        import robot_api_msgs.msg
+    elif ros_version == "2":
+        import robot_api_msgs.action
+    else:
+        raise ImportError(f"Unsupported ROS_VERSION: {ros_version}")
+except KeyError:
+    raise ImportError(
+        "ROS_VERSION environment variable not set. Please source your ROS setup file."
+    )
 except ModuleNotFoundError:
     print(
         "Error: Trying to import robot_api without its ROS environment does not work."

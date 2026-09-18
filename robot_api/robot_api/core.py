@@ -43,11 +43,16 @@ class Base:
     YAW_TOLERANCE = 0.1
 
     def __init__(self, namespace: str, connect_navigation_on_init: bool) -> None:
+        self._namespace = namespace
         _ros_wrapper.init_action_server(
             namespace,
             {_ros_wrapper.get_move_base_topic_name(): (MoveBaseAction,)},
             connect_navigation_on_init,
         )
+
+    def _robot_frame_id(self, robot_frame: str) -> str:
+        # tf2 rejects frame ids with a leading slash, tf (ROS 1) tolerates both.
+        return (self._namespace + robot_frame).lstrip("/")
 
     def get_pose(
         self,
@@ -58,7 +63,7 @@ class Base:
         """Return robot pose as tuple of position [x, y, z] and orientation [x, y, z, w]."""
         try:
             pose = _ros_wrapper.lookup_transform(
-                reference_frame, self._namespace + robot_frame, 0
+                reference_frame, self._robot_frame_id(robot_frame), 0
             )
         except (LookupException, ExtrapolationException) as e:
             # If timeout is given, repeatedly try again.
@@ -69,7 +74,7 @@ class Base:
                         time.sleep(1.0)
                         pose = _ros_wrapper.lookup_transform(
                             reference_frame,
-                            self._namespace + robot_frame,
+                            self._robot_frame_id(robot_frame),
                             0,
                         )
                         return pose

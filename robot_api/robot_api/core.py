@@ -230,6 +230,42 @@ class Base:
             done_cb,
         )
 
+    MOVE_LINEAR_TOPIC_NAME = "move_linear"
+
+    def move_linear(self, distance_cm: float, timeout: float = 60.0) -> Any:
+        """
+        Drive the base straight along its current heading by distance_cm (negative = backward)
+        through a MoveLinear action server (mobipick_base_motion; it plans the shifted pose with
+        move_base and falls back to a guarded straight drive). Return the server's result
+        (success, message, travelled_cm, lateral_error_cm, heading_error_deg) or None when the
+        server is unavailable or the timeout elapsed.
+        """
+        try:
+            from mobipick_base_motion.msg import MoveLinearAction, MoveLinearGoal
+        except ImportError:
+            _ros_wrapper.log(
+                "move_linear needs the mobipick_base_motion package (MoveLinear action, ROS 1).",
+                level="error",
+            )
+            return None
+        server_name = self.MOVE_LINEAR_TOPIC_NAME
+        _ros_wrapper._server_specs.setdefault(server_name, (MoveLinearAction,))
+        if not _ros_wrapper._connect_to_action_server(server_name, timeout=2.0):
+            _ros_wrapper.log("Did you launch the move_linear node?", level="error")
+            return None
+        _ros_wrapper.log(f"Moving base {distance_cm:+.1f} cm along its heading ...", level="info")
+        state = _ros_wrapper.send_goal_and_wait(
+            server_name,
+            MoveLinearGoal(distance_cm=float(distance_cm), timeout_s=float(timeout)),
+            timeout + 5.0,
+        )
+        result = _ros_wrapper.get_action_result(server_name)
+        if result is None:
+            _ros_wrapper.log(f"No move_linear result (state {state}).", level="error")
+            return None
+        _ros_wrapper.log(f"move_linear: {result.message}", level="info" if result.success else "error")
+        return result
+
     def move_to_waypoint(
         self,
         name: str,

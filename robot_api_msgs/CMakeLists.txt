@@ -13,14 +13,6 @@ add_action_files(
     DIRECTORY action
     FILES
     MoveItMacro.action
-)
-
-# FtObserver.action differs between ROS 1 and ROS 2: ROS 2 (rosidl) requires
-# snake_case field names, but the ROS 1 definition must stay byte-identical to
-# mobipick_pick_n_place/action/FtObserver.action so the actionlib md5sums match.
-add_action_files(
-    DIRECTORY action/ros1
-    FILES
     FtObserver.action
 )
 
